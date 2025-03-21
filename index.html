@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم المالية - حجوزات يناير ٢٠٢٥</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="attached_assets/styles.css">
+    <!-- Google API Libraries -->
+    <script src="https://apis.google.com/js/api.js" defer></script>
+    <script src="https://accounts.google.com/gsi/client" defer 
+            onload="console.log('GSI تم التحميل من الرأس'); window.gsiLoaded = true;"
+            onerror="console.error('فشل تحميل GSI من الرأس'); window.gsiLoadError = true;"></script>
+    <script>
+        // إعداد المتغيرات العالمية للتحقق من حالة تحميل المكتبات
+        window.gsiLoaded = false;
+        window.gsiLoadError = false;
+        window.gapiLoaded = false;
+    </script>
+    <!-- إضافة أنماط CSS لمؤشر المزامنة -->
+    <style>
+        #syncIndicator {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+    </style>
+    
+    <!-- Google APIs مضمنة سابقاً في رأس الصفحة -->
+    <script src="attached_assets/cloud-backup.js"></script>
+    <script src="dashboard-fix.js"></script>
+    <script src="index.js"></script>
+</head>
+<body class="homepage">
+    <!-- نافذة تسجيل الدخول -->
+    <div class="login-modal" id="loginModal">
+        <div class="login-content">
+            <h3>تسجيل الدخول</h3>
+            <input type="text" id="username" class="input" placeholder="اسم المستخدم">
+            <input type="password" id="password" class="input" placeholder="كلمة المرور">
+            <select id="userRole" class="input">
+                <option value="owner">مالك</option>
+                <option value="manager">مدير مالي</option>
+                <option value="staff">موظف إداري</option>
+            </select>
+            <button class="btn" onclick="login()">
+                <i class='bx bx-log-in'></i> دخول
+            </button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- الشريط الجانبي -->
+        <div class="sidebar" id="sidebar">
+            <div style="display: flex; flex-direction: column; height: 100%;">
+                <div class="sidebar-header">
+                    <img src="https://placehold.co/70x70/12846e/fff?text=S" alt="شعار الشركة">
+                    <h2>لوحة التحكم</h2>
+                </div>
+                <div class="nav-menu">
+                    <button onclick="showSection('home')" class="active-btn">
+                        <i class='bx bx-home'></i> الرئيسية
+                    </button>
+                    <button onclick="showSection('voices')">
+                        <i class='bx bx-microphone'></i> المعلقون
+                    </button>
+                    <button onclick="showSection('clients')">
+                        <i class='bx bx-user'></i> العملاء
+                    </button>
+                    <button onclick="showSection('reservations')">
+                        <i class='bx bx-calendar'></i> الحجوزات
+                    </button>
+                    <button onclick="showSection('reports')">
+                        <i class='bx bx-file'></i> التقارير
+                    </button>
+                    <button onclick="showSection('invoices')">
+                        <i class='bx bx-receipt'></i> استيراد الفواتير
+                    </button>
+                </div>
+                <button class="undo-btn" onclick="undoChange()">
+                    <i class='bx bx-undo'></i> تراجع
+                </button>
+                <div class="user-role-display">
+                    <span id="userRoleDisplay">الدور: مالك</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- المحتوى الرئيسي -->
+        <div class="main-content">
+            <div class="topbar">
+                <div class="topbar-left">
+                    <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()">
+                        <i class='bx bx-menu'></i>
+                    </button>
+                    <div class="brand-logo">S</div>
+                </div>
+                <div class="topbar-right">
+                    <button class="btn btn-outline btn-sm" onclick="backupToDrive(true)" title="حفظ البيانات">
+                        <i class='bx bx-cloud-upload'></i> حفظ سحابي
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="openCloudSettings()" title="إعدادات Google Drive">
+                        <i class='bx bx-cog'></i> إعدادات الحفظ
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="toggleDarkMode()" title="تغيير وضع العرض">
+                        <i class='bx bx-moon'></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- قوائم منسدلة -->
+            <datalist id="clientList"></datalist>
+            <datalist id="invoiceList"></datalist>
+            
+            <div class="hero">
+                <div class="hero-content">
+                    <h1>أهلاً بك في لوحة التحكم</h1>
+                    <p>نظرة سريعة على حجوزاتك ومعاملاتك المالية</p>
+                    <button class="btn hero-btn">اكتشف المزيد</button>
+                </div>
+            </div>
+
+            <!-- إضافة قسم عرض الميزات الجديد -->
+            <div id="featuresShowcase" class="features-showcase">
+                <div class="showcase-header">
+                    <h2>مميزات لوحة التحكم المالية</h2>
+                    <p>استكشف كافة الأدوات والمميزات المتاحة في لوحة التحكم لإدارة حجوزاتك ومعاملاتك المالية بكفاءة أعلى</p>
+                </div>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <i class='bx bx-line-chart feature-icon'></i>
+                        <h3>تحليلات متقدمة</h3>
+                        <p>عرض بيانات الحجوزات والإيرادات والمصروفات برسوم بيانية متقدمة لتحليل أداء نشاطك التجاري</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <i class='bx bx-calendar feature-icon'></i>
+                        <h3>إدارة الحجوزات</h3>
+                        <p>تنظيم وإدارة حجوزات العملاء وربطها بالفواتير آلياً مع إمكانية إضافة المعلقين وأجورهم</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <i class='bx bx-receipt feature-icon'></i>
+                        <h3>استيراد الفواتير</h3>
+                        <p>استيراد بيانات الفواتير تلقائياً من ملفات Excel أو CSV وربطها بالحجوزات بشكل مباشر</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <i class='bx bx-wallet feature-icon'></i>
+                        <h3>إدارة المالية</h3>
+                        <p>متابعة الإيرادات والمصروفات ومستحقات المعلقين مع إشعارات التذكير بمواعيد الدفع</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <i class='bx bx-user feature-icon'></i>
+                        <h3>إدارة العملاء</h3>
+                        <p>سجل متكامل للعملاء مع إمكانية استيراد بياناتهم من ملفات CSV وإنشاء قوائم خاصة</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <i class='bx bx-cloud-upload feature-icon'></i>
+                        <h3>تخزين سحابي</h3>
+                        <p>حفظ البيانات آلياً على Google Drive مع نسخ احتياطية مجدولة لضمان عدم فقدان معلوماتك</p>
+                    </div>
+                </div>
+                
+                <div class="showcase-footer">
+                    <button id="closeShowcaseBtn" class="btn">
+                        <i class='bx bx-chevron-up'></i> إخفاء التفاصيل
+                    </button>
+                </div>
+            </div>
+
+            <div class="content-container">
+                <!-- (الصفحة الرئيسية (الإحصائيات + الرسوم البيانية -->
+                <div id="home" class="section active">
+                    <div class="stats-cards">
+                        <div class="stat-card">
+                            <h3><i class='bx bx-bar-chart-alt-2'></i> الإيرادات الشهرية</h3>
+                            <div class="stat-value"><span id="totalRevenue">24,500</span> ريال</div>
+                            <div class="stat-description">عن الشهر الماضي</div>
+                        </div>
+                        <div class="stat-card pending">
+                            <h3><i class='bx bx-bell'></i> المستحقات المعلقة</h3>
+                            <div class="stat-value"><span id="totalActorFee">6,250</span> ريال</div>
+                            <div class="stat-description">مدفوعات متبقية</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3><i class='bx bx-check-shield'></i> الأموال المتاحة</h3>
+                            <div class="stat-value"><span id="availableFunds">6,000</span> ريال</div>
+                            <div class="stat-description">الحد الأدنى للرصيد: <strong>4000</strong> ريال</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3><i class='bx bx-credit-card'></i> الرصيد الحالي</h3>
+                            <div class="stat-value"><span id="balanceSpan">10,000</span> ريال</div>
+                            <div class="stat-description">عن الشهر الماضي</div>
+                        </div>
+                        <!-- بطاقة صافي الربح -->
+                        <div class="stat-card profit">
+                            <h3><i class='bx bx-wallet'></i> صافي الربح</h3>
+                            <div class="stat-value"><span id="netProfit">18,250</span> ريال</div>
+                            <div class="stat-description">الإيرادات - المستحقات</div>
+                        </div>
+                    </div>
+                    
+                    <div class="home-actions">
+                        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items: center;">
+                            <label style="margin: 0;">تحديث الرصيد الحالي:</label>
+                            <input type="number" id="newBalance" class="input" style="max-width:180px; margin: 0;" placeholder="أدخل الرصيد">
+                            <button class="btn" style="margin-top: 0;" onclick="updateBalance()">
+                                <i class='bx bx-save'></i> تحديث الرصيد
+                            </button>
+                        </div>
+                        <div style="display:flex; gap:12px;">
+                            <button class="btn-outline" onclick="openCloudSettings()">
+                                <i class='bx bx-cloud-upload'></i> الحفظ السحابي
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-range">
+                        <label style="margin:0;">
+                            <input type="radio" name="chartGrouping" value="day" checked onchange="updateCharts(this.value)" style="margin-left:5px;">
+                            <span>يوم</span>
+                        </label>
+                        <label style="margin:0;">
+                            <input type="radio" name="chartGrouping" value="month" onchange="updateCharts(this.value)" style="margin-left:5px;">
+                            <span>شهر</span>
+                        </label>
+                        <label style="margin:0;">
+                            <input type="radio" name="chartGrouping" value="year" onchange="updateCharts(this.value)" style="margin-left:5px;">
+                            <span>سنة</span>
+                        </label>
+                    </div>
+                    
+                    <div class="chart-grid">
+                        <div class="chart-area">
+                            <h3><i class='bx bx-calendar-check'></i> حجم الحجوزات حسب الفترة</h3>
+                            <div class="chart-container">
+                                <canvas id="reservationChart"></canvas>
+                            </div>
+                            <div class="chart-controls">
+                                <button class="active" data-period="weekly">أسبوعي</button>
+                                <button data-period="monthly">شهري</button>
+                                <button data-period="yearly">سنوي</button>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-area">
+                            <h3><i class='bx bx-trending-up'></i> عدد الحجوزات حسب العميل</h3>
+                            <div class="chart-container">
+                                <canvas id="reservationBarChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-area">
+                            <h3><i class='bx bx-dollar-circle'></i> الإيرادات والمصروفات</h3>
+                            <div class="chart-container">
+                                <canvas id="revenueExpenseChart"></canvas>
+                            </div>
+                            <div class="chart-legend">
+                                <div class="chart-legend-item">
+                                    <div class="chart-legend-color" style="background-color: rgba(46, 204, 113, 0.6);"></div>
+                                    <span>الإيرادات</span>
+                                </div>
+                                <div class="chart-legend-item">
+                                    <div class="chart-legend-color" style="background-color: rgba(231, 76, 60, 0.6);"></div>
+                                    <span>المصروفات</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-area">
+                            <h3><i class='bx bx-receipt'></i> حالة الفواتير</h3>
+                            <div class="chart-container">
+                                <canvas id="invoiceRevenueChart"></canvas>
+                            </div>
+                            <div class="chart-legend">
+                                <div class="chart-legend-item">
+                                    <div class="chart-legend-color" style="background-color: rgba(46, 204, 113, 0.6);"></div>
+                                    <span>مدفوعة</span>
+                                </div>
+                                <div class="chart-legend-item">
+                                    <div class="chart-legend-color" style="background-color: rgba(241, 196, 15, 0.6);"></div>
+                                    <span>معلقة</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- قسم المعلقين -->
+                <div id="voices" class="section">
+                    <div class="section-header">
+                        <h2><i class='bx bx-microphone'></i> إدارة المعلقين</h2>
+                        <button class="btn" onclick="showAddVoiceModal()">
+                            <i class='bx bx-plus'></i> إضافة معلق
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>قائمة المعلقين</h3>
+                            <div class="card-actions">
+                                <div class="search-input">
+                                    <i class='bx bx-search'></i>
+                                    <input type="text" placeholder="بحث..." id="voiceSearchInput">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="voicesTable">
+                                <thead>
+                                    <tr>
+                                        <th>الاسم</th>
+                                        <th>أجر الساعة</th>
+                                        <th>إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- سيتم ملؤها بالبيانات من JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- قسم العملاء -->
+                <div id="clients" class="section">
+                    <div class="section-header">
+                        <h2><i class='bx bx-user'></i> إدارة العملاء</h2>
+                        <button class="btn" onclick="showAddClientModal()">
+                            <i class='bx bx-plus'></i> إضافة عميل
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>قائمة العملاء</h3>
+                            <div class="card-actions">
+                                <div class="search-input">
+                                    <i class='bx bx-search'></i>
+                                    <input type="text" placeholder="بحث..." id="clientSearchInput">
+                                </div>
+                                <button class="btn btn-outline btn-sm" onclick="importClientsCSV()">
+                                    <i class='bx bx-import'></i> استيراد من ملف
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="clientsTable">
+                                <thead>
+                                    <tr>
+                                        <th>الاسم</th>
+                                        <th>تاريخ الإضافة</th>
+                                        <th>إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- سيتم ملؤها بالبيانات من JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- قسم الحجوزات -->
+                <div id="reservations" class="section">
+                    <div class="section-header">
+                        <h2><i class='bx bx-calendar'></i> إدارة الحجوزات</h2>
+                        <button class="btn" onclick="showAddReservationModal()">
+                            <i class='bx bx-plus'></i> إضافة حجز
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>قائمة الحجوزات</h3>
+                            <div class="card-actions">
+                                <div class="search-input">
+                                    <i class='bx bx-search'></i>
+                                    <input type="text" placeholder="بحث..." id="reservationSearchInput">
+                                </div>
+                                <button class="btn btn-outline btn-sm" onclick="exportToExcel('reservations')">
+                                    <i class='bx bx-download'></i> تصدير Excel
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="reservationsTable">
+                                <thead>
+                                    <tr>
+                                        <th>رقم الحجز</th>
+                                        <th>العميل</th>
+                                        <th>موعد التسجيل</th>
+                                        <th>المعلقون</th>
+                                        <th>سعر العمل</th>
+                                        <th>أجور المعلقين</th>
+                                        <th>صافي الإيراد</th>
+                                        <th>تاريخ استحقاق الدفع</th>
+                                        <th>رقم الفاتورة</th>
+                                        <th>حالة الدفع</th>
+                                        <th>إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- سيتم ملؤها بالبيانات من JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- قسم التقارير -->
+                <div id="reports" class="section">
+                    <div class="section-header">
+                        <h2><i class='bx bx-file'></i> التقارير المالية</h2>
+                    </div>
+                    
+                    <div class="report-tabs">
+                        <button class="report-tab active" data-report="summary">ملخص مالي</button>
+                        <button class="report-tab" data-report="actors">مستحقات المعلقين</button>
+                        <button class="report-tab" data-report="clients">أرصدة العملاء</button>
+                    </div>
+                    
+                    <div class="card" id="summaryReport">
+                        <div class="card-header">
+                            <h3>الملخص المالي</h3>
+                            <div class="card-actions">
+                                <button class="btn btn-outline btn-sm" onclick="printReport('summary')">
+                                    <i class='bx bx-printer'></i> طباعة
+                                </button>
+                            </div>
+                        </div>
+                        <div class="report-content">
+                            <div class="report-summary">
+                                <div class="summary-item">
+                                    <h4>إجمالي الإيرادات</h4>
+                                    <div class="summary-value success"><span id="reportTotalRevenue">0</span> ريال</div>
+                                </div>
+                                <div class="summary-item">
+                                    <h4>إجمالي المصروفات</h4>
+                                    <div class="summary-value danger"><span id="reportTotalExpense">0</span> ريال</div>
+                                </div>
+                                <div class="summary-item">
+                                    <h4>مستحقات المعلقين</h4>
+                                    <div class="summary-value warning"><span id="reportTotalActorFees">0</span> ريال</div>
+                                </div>
+                                <div class="summary-item">
+                                    <h4>الإيرادات الصافية</h4>
+                                    <div class="summary-value success"><span id="reportNetRevenue">0</span> ريال</div>
+                                </div>
+                            </div>
+                            <div class="report-chart">
+                                <canvas id="summaryChartCanvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card hidden" id="actorsReport">
+                        <div class="card-header">
+                            <h3>مستحقات المعلقين</h3>
+                            <div class="card-actions">
+                                <button class="btn btn-outline btn-sm" onclick="printReport('actors')">
+                                    <i class='bx bx-printer'></i> طباعة
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="actorsReportTable">
+                                <thead>
+                                    <tr>
+                                        <th>المعلق</th>
+                                        <th>عدد الحجوزات</th>
+                                        <th>إجمالي المستحقات</th>
+                                        <th>مدفوع</th>
+                                        <th>متبقي</th>
+                                        <th>حالة الدفع</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- سيتم ملؤها بالبيانات من JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="card hidden" id="clientsReport">
+                        <div class="card-header">
+                            <h3>أرصدة العملاء</h3>
+                            <div class="card-actions">
+                                <button class="btn btn-outline btn-sm" onclick="printReport('clients')">
+                                    <i class='bx bx-printer'></i> طباعة
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="clientsReportTable">
+                                <thead>
+                                    <tr>
+                                        <th>العميل</th>
+                                        <th>عدد الحجوزات</th>
+                                        <th>إجمالي الفواتير</th>
+                                        <th>مدفوع</th>
+                                        <th>متبقي</th>
+                                        <th>حالة الدفع</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- سيتم ملؤها بالبيانات من JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- قسم الفواتير -->
+                <div id="invoices" class="section">
+                    <div class="section-header">
+                        <h2><i class='bx bx-receipt'></i> استيراد الفواتير</h2>
+                        <button class="btn" onclick="importInvoicesModal()">
+                            <i class='bx bx-plus'></i> إضافة فاتورة
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>الفواتير المستوردة</h3>
+                            <div class="card-actions">
+                                <div class="search-input">
+                                    <i class='bx bx-search'></i>
+                                    <input type="text" placeholder="بحث..." id="invoiceSearchInput">
+                                </div>
+                                <button class="btn btn-outline btn-sm" onclick="importInvoicesFromExcel()">
+                                    <i class='bx bx-import'></i> استيراد من Excel
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="invoicesTable">
+                                <thead>
+                                    <tr>
+                                        <th>رقم الفاتورة</th>
+                                        <th>التاريخ</th>
+                                        <th>العميل</th>
+                                        <th>القيمة</th>
+                                        <th>المدفوع</th>
+                                        <th>حالة الدفع</th>
+                                        <th>إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- سيتم ملؤها بالبيانات من JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h3>سجل العمليات</h3>
+                            <div class="card-actions">
+                                <button class="btn btn-outline btn-sm" onclick="clearInvoiceAuditLog()">
+                                    <i class='bx bx-trash'></i> مسح السجل
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="invoiceAuditLogTable">
+                                <thead>
+                                    <tr>
+                                        <th>العملية</th>
+                                        <th>رقم الفاتورة</th>
+                                        <th>التاريخ والوقت</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- سيتم ملؤها بالبيانات من JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- مؤشر المزامنة -->
+    <div id="syncIndicator" class="sync-indicator">
+        <div class="sync-content">
+            <i class='bx bx-sync bx-spin'></i>
+            <p id="syncMessage">جاري مزامنة البيانات...</p>
+        </div>
+    </div>
+
+    <!-- Cloud Settings Modal -->
+    <div class="modal" id="cloudSettingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>إعدادات الحفظ السحابي</h3>
+                <button class="close-btn" onclick="closeModal('cloudSettingsModal')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h4>حساب Google Drive</h4>
+                    <p id="driveAuthMessage">لم يتم تسجيل الدخول بعد.</p>
+                    <button id="googleDriveAuthBtn" class="btn" onclick="googleDriveAuth.authenticate()" disabled>
+                        <i class='bx bxl-google'></i> تسجيل الدخول مع Google
+                    </button>
+                </div>
+                
+                <div id="driveBackupSettings" class="settings-section" style="display: none;">
+                    <h4>إعدادات النسخ الاحتياطي</h4>
+                    <div class="form-group">
+                        <label for="backupFolderName">اسم مجلد النسخ الاحتياطي:</label>
+                        <input type="text" id="backupFolderName" class="input" value="Dashboard_Backups">
+                    </div>
+                    
+                    <div class="settings-row">
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="enableAutoBackup">
+                            <label for="enableAutoBackup">تمكين النسخ الاحتياطي التلقائي</label>
+                        </div>
+                    </div>
+                    
+                    <div id="autoBackupOptions" class="settings-row" style="display: none;">
+                        <label for="backupFrequency">تكرار النسخ الاحتياطي:</label>
+                        <select id="backupFrequency" class="input">
+                            <option value="daily">يومي</option>
+                            <option value="weekly" selected>أسبوعي</option>
+                            <option value="monthly">شهري</option>
+                        </select>
+                    </div>
+                    
+                    <div class="settings-row">
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="enableAutoSync">
+                            <label for="enableAutoSync">تمكين المزامنة التلقائية</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="driveRestoreOptions" class="settings-section" style="display: none;">
+                    <h4>استعادة النسخ الاحتياطية</h4>
+                    <button id="restoreBackupBtn" class="btn btn-outline" onclick="restoreFromDrive()">
+                        <i class='bx bx-cloud-download'></i> استعادة من Google Drive
+                    </button>
+                </div>
+                
+                <div id="driveRestoreMessage" class="settings-section">
+                    <p>قم بتسجيل الدخول أولاً لاستعادة النسخ الاحتياطية.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('cloudSettingsModal')">إغلاق</button>
+                <button class="btn" onclick="saveCloudSettings()">حفظ الإعدادات</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // التأكد من تحميل مكتبات Google API بشكل صحيح
+            setTimeout(function() {
+                try {
+                    if (typeof window.initializeGoogleAPI === 'function') {
+                        console.log('جاري محاولة تهيئة Google API...');
+                        // محاولة تهيئة الـ API
+                        window.initializeGoogleAPI();
+                        
+                        // فحص دعم Google API بعد التهيئة
+                        setTimeout(function() {
+                            if (typeof window.checkGoogleApiSupport === 'function') {
+                                window.checkGoogleApiSupport();
+                            } else {
+                                console.warn('دالة التحقق من دعم API غير متاحة');
+                            }
+                        }, 1000);
+                    } else {
+                        console.warn('وظيفة initializeGoogleAPI غير متاحة، جاري محاولة الاستمرار بالوضع المحلي');
+                        
+                        // تمكين زر المصادقة على أي حال للعمل بالوضع المحلي فقط
+                        const authBtn = document.getElementById('googleDriveAuthBtn');
+                        if (authBtn) {
+                            authBtn.disabled = false;
+                            authBtn.textContent = 'استخدام التخزين المحلي';
+                            authBtn.onclick = function() {
+                                alert('التخزين السحابي غير متاح في الوقت الحالي. يتم حفظ البيانات محلياً فقط.');
+                            };
+                        }
+                    }
+                } catch (e) {
+                    console.error('خطأ في تهيئة Google API:', e);
+                    // ضمان استمرارية عمل التطبيق حتى في حال فشل Google API
+                    const authBtn = document.getElementById('googleDriveAuthBtn');
+                    if (authBtn) {
+                        authBtn.disabled = false;
+                        authBtn.textContent = 'استخدام التخزين المحلي';
+                        authBtn.onclick = function() {
+                            alert('التخزين السحابي غير متاح. يتم استخدام التخزين المحلي فقط.');
+                        };
+                    }
+                }
+            }, 500);
+            
+            // تفعيل زر تسجيل الدخول إلى Google Drive
+            const authBtn = document.getElementById('googleDriveAuthBtn');
+            if (authBtn) {
+                authBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
