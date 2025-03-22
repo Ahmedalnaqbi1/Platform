@@ -99,37 +99,27 @@ document.addEventListener("DOMContentLoaded", () => {
     createEditVoiceModal();
     createEditClientModal();
     createEditReservationModal();
-    createAddInvoiceModal();
     
     // تحديث الجداول
     try {
         renderInvoicesTable();
         renderInvoiceAuditLogTable();
         renderReservationsTable();
-        renderVoicesTable();
-        renderClientsTable();
         renderReports();
     } catch (e) {
         console.error("خطأ في تهيئة الجداول:", e);
     }
     
-    // إضافة مستمعي أحداث للبحث
-    setupSearchListeners();
-
-    // إضافة مستمعي أحداث للتقارير
-    setupReportTabs();
-    
-    // تفعيل زر اكتشف المزيد في الصفحة الرئيسية
-    setupFeatureShowcase();
-    
     // حفظ الحالة الأولية
     saveState();
     
     // للاختبار السريع يمكنك إلغاء تعليق هذا السطر
-    // skipLogin();
+    skipLogin();
     
-    // إعداد الحفظ التلقائي
-    setupAutoSave();
+    // إعداد الحفظ التلقائي (إذا كان متوفراً)
+    if (typeof setupAutoSave === 'function') {
+        setupAutoSave();
+    }
     
     // التحقق من وجود توكن صالح لـ Google Drive والبدء بالمزامنة على الفور
     checkTokenAndStartSync();
@@ -194,7 +184,7 @@ function performSync() {
         
         // محاولة تحميل ملف cloud-backup.js ثم إعادة المحاولة
         const script = document.createElement('script');
-        script.src = 'js/cloud-backup.js';
+        script.src = 'cloud-backup.js';
         script.onload = function() {
             if (typeof window.autoRestoreLatestBackup === 'function') {
                 performSync();
@@ -267,7 +257,7 @@ function addSyncButtonToLogin() {
             
             // محاولة تحميل ملف cloud-backup.js ثم إعادة المحاولة
             const script = document.createElement('script');
-            script.src = 'js/cloud-backup.js';
+            script.src = 'cloud-backup.js';
             script.onload = function() {
                 if (typeof window.authenticateWithGoogleDrive === 'function') {
                     document.getElementById('loginSyncBtn').click();
@@ -339,54 +329,3482 @@ function login() {
         const syncIndicator = document.getElementById('syncIndicator');
         const isSyncing = syncIndicator && syncIndicator.style.visibility === 'visible';
         
+        // إذا لم تكن المزامنة جارية بالفعل، قم بتنفيذها
         if (!isSyncing) {
-            // عرض رسالة ترحيب
-            showNotification("مرحباً بك", "تم تسجيل الدخول بنجاح", "success");
+            // إظهار مؤشر المزامنة
+            showSyncIndicator("جارِ التحقق من وجود نسخ احتياطية...");
+            
+            // بدء المزامنة بعد تسجيل الدخول
+            performSync();
         }
     } else {
         alert("اسم المستخدم أو كلمة المرور غير صحيحة");
     }
 }
 
-// وظيفة للتخطي السريع لشاشة تسجيل الدخول (للتطوير فقط)
+// وظيفة تخطي تسجيل الدخول (لاختبار التطبيق فقط)
 function skipLogin() {
+    document.getElementById('userRoleDisplay').textContent = `الدور: مالك`;
+    
+    // إزالة نافذة تسجيل الدخول من DOM
     const loginModal = document.getElementById('loginModal');
     if (loginModal) {
         loginModal.remove();
     }
     
-    document.querySelector('.app-container').style.display = 'flex';
+    // تفعيل واجهة المستخدم
+    const appContainer = document.querySelector('.app-container');
+    if (appContainer) {
+        appContainer.style.display = 'flex';
+    }
     
+    // تحديث الرسوم البيانية بعد إظهارها
     setTimeout(() => {
         updateCharts('day');
     }, 100);
+    
+    // تحقق من الحالة الحالية للمزامنة
+    const syncIndicator = document.getElementById('syncIndicator');
+    const isSyncing = syncIndicator && syncIndicator.style.visibility === 'visible';
+    
+    // إذا لم تكن المزامنة جارية بالفعل، قم بتنفيذها
+    if (!isSyncing) {
+        // إظهار مؤشر المزامنة
+        showSyncIndicator("جارِ التحقق من وجود نسخ احتياطية...");
+        
+        // بدء المزامنة بعد تسجيل الدخول
+        performSync();
+    }
 }
 
-// إنشاء عنصر مؤشر المزامنة
-function createSyncIndicatorIfNeeded() {
-    if (!document.getElementById('syncIndicator')) {
-        const syncIndicator = document.createElement('div');
-        syncIndicator.id = 'syncIndicator';
-        syncIndicator.className = 'sync-indicator';
-        syncIndicator.innerHTML = `
-            <div class="sync-content">
-                <i class='bx bx-sync bx-spin'></i>
-                <p id="syncMessage">جاري مزامنة البيانات...</p>
+// إضافة مودال لتعديل المعلق
+function createEditVoiceModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'editVoiceModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('editVoiceModal')">×</button>
+            <h3>تعديل معلق صوتي</h3>
+            <input type="hidden" id="editVoiceIndex">
+            <label>اسم المعلق</label>
+            <input type="text" id="editVoiceName" class="input" placeholder="اسم المعلق">
+            <label>سعر خاص للدقيقة</label>
+            <input type="number" id="editVoiceRate" class="input" placeholder="سعر خاص للدقيقة">
+            <button class="btn" onclick="saveVoiceEdit()">
+                <i class='bx bx-save'></i> حفظ التعديل
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// إضافة مودال لتعديل العميل
+function createEditClientModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'editClientModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('editClientModal')">×</button>
+            <h3>تعديل بيانات العميل</h3>
+            <input type="hidden" id="editClientIndex">
+            <label>اسم العميل</label>
+            <input type="text" id="editClientName" class="input" placeholder="اسم العميل">
+            <button class="btn" onclick="saveClientEdit()">
+                <i class='bx bx-save'></i> حفظ التعديل
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// إضافة مودال لتعديل الحجز
+function createEditReservationModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'editReservationModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('editReservationModal')">×</button>
+            <h3>تعديل حجز</h3>
+            <input type="hidden" id="editReservationIndex">
+            <label>اسم العميل</label>
+            <input type="text" list="clientList" id="editResClient" class="input" placeholder="اكتب أو اختر">
+            <label>التاريخ والوقت</label>
+            <input type="datetime-local" id="editResTime" class="input">
+            <label>سعر العمل (الإجمالي)</label>
+            <input type="number" id="editResWorkPrice" class="input">
+            <h4 style="margin-top: 20px; margin-bottom: 10px;">المعلقون وأجورهم</h4>
+            <div style="display:flex; gap:8px; margin-bottom:8px;">
+                <input type="text" id="editTempActorName" class="input" style="flex:1; margin: 0;">
+                <input type="number" id="editTempActorFee" class="input" style="max-width:100px; margin: 0;">
+                <button class="btn btn-sm" style="margin: 0;" onclick="addTempActorToEdit()">أضف</button>
             </div>
+            <div id="editActorsList" style="background:var(--primary-light);padding:12px;border:1px solid var(--border-color);border-radius:8px;min-height:40px;margin-bottom:16px;">
+            </div>
+            <label>رقم الفاتورة (اختياري)</label>
+            <input type="text" list="invoiceList" id="editResInvoiceNumber" class="input">
+            <label>تاريخ استحقاق المعلق</label>
+            <input type="date" id="editResDueDate" class="input">
+            <div style="margin: 12px 0;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                    <input type="checkbox" id="editResPaid" style="width: 18px; height: 18px;">
+                    <span>تم الدفع؟</span>
+                </label>
+            </div>
+            <label>تفاصيل الحجز</label>
+            <textarea id="editResNotes" class="input" rows="3"></textarea>
+            <button class="btn" onclick="saveReservationEdit()">
+                <i class='bx bx-save'></i> حفظ التعديلات
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// وظائف تعديل المعلق
+function editVoiceActor(index) {
+    // التحقق من وجود المودال وإنشاؤه إذا لم يكن موجودا
+    if (!document.getElementById('editVoiceModal')) {
+        createEditVoiceModal();
+    }
+    
+    const voice = voices[index];
+    if (!voice) return;
+    
+    document.getElementById('editVoiceIndex').value = index;
+    document.getElementById('editVoiceName').value = voice.name;
+    document.getElementById('editVoiceRate').value = voice.rate;
+    
+    document.getElementById('editVoiceModal').classList.add('active');
+}
+
+function saveVoiceEdit() {
+    const index = parseInt(document.getElementById('editVoiceIndex').value);
+    const name = document.getElementById('editVoiceName').value.trim();
+    const rate = parseFloat(document.getElementById('editVoiceRate').value) || 0;
+    
+    if (!name) {
+        alert("يرجى إدخال اسم المعلق");
+        return;
+    }
+    
+    // حفظ حالة النظام قبل التغيير
+    saveState();
+    
+    voices[index] = { name, rate };
+    
+    // تحديث الجدول
+    const voicesTable = document.getElementById("voicesTable");
+    const row = voicesTable.rows[index + 1]; // +1 للعنوان
+    row.cells[0].textContent = name;
+    row.cells[1].textContent = `${rate} ريال`;
+    
+    closeModal('editVoiceModal');
+}
+
+// وظائف تعديل العميل
+function editClient(index) {
+    const client = clients[index];
+    if (!client) return;
+    
+    document.getElementById('editClientIndex').value = index;
+    document.getElementById('editClientName').value = client.name;
+    
+    document.getElementById('editClientModal').classList.add('active');
+}
+
+function saveClientEdit() {
+    const index = parseInt(document.getElementById('editClientIndex').value);
+    const name = document.getElementById('editClientName').value.trim();
+    
+    if (!name) {
+        alert("يرجى إدخال اسم العميل");
+        return;
+    }
+    
+    // حفظ حالة النظام قبل التغيير
+    saveState();
+    
+    clients[index].name = name;
+    
+    // تحديث الجدول
+    const clientsTable = document.getElementById("clientsTable");
+    const row = clientsTable.rows[index + 1]; // +1 للعنوان
+    row.cells[0].textContent = name;
+    
+    // تحديث القوائم المنسدلة
+    populateDatalists();
+    
+    closeModal('editClientModal');
+}
+
+// وظائف تعديل الحجز
+function editReservation(index) {
+    // التحقق من وجود المودال وإنشاؤه إذا لم يكن موجودا
+    if (!document.getElementById('editReservationModal')) {
+        createEditReservationModal();
+    }
+    
+    const reservation = reservations[index];
+    if (!reservation) return;
+    
+    document.getElementById('editReservationIndex').value = index;
+    document.getElementById('editResClient').value = reservation.client;
+    document.getElementById('editResTime').value = reservation.recordTime;
+    document.getElementById('editResWorkPrice').value = reservation.workPrice;
+    document.getElementById('editResInvoiceNumber').value = reservation.invoiceNumber;
+    document.getElementById('editResDueDate').value = reservation.actorDueDate;
+    document.getElementById('editResPaid').checked = reservation.actorPaid;
+    document.getElementById('editResNotes').value = reservation.notes;
+    
+    // عرض المعلقين
+    const actorsList = document.getElementById('editActorsList');
+    actorsList.innerHTML = '';
+    reservation.voiceActors.forEach((actor, actorIndex) => {
+        const actorElement = document.createElement('div');
+        actorElement.style = "margin:5px 0;background:#fff;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;display:flex;justify-content:space-between;align-items:center;";
+        actorElement.innerHTML = `
+            <div><strong>${actor.name}</strong> - ${actor.fee} ريال</div>
+            <button class="btn btn-sm btn-danger" style="margin: 0;" onclick="removeActorFromEdit(${actorIndex})">
+                <i class='bx bx-x'></i>
+            </button>
+        `;
+        actorsList.appendChild(actorElement);
+    });
+    
+    document.getElementById('editReservationModal').classList.add('active');
+}
+
+function addTempActorToEdit() {
+    const name = document.getElementById('editTempActorName').value.trim();
+    const fee = parseFloat(document.getElementById('editTempActorFee').value) || 0;
+    
+    if (!name) {
+        alert("يرجى إدخال اسم المعلق");
+        return;
+    }
+    
+    const index = parseInt(document.getElementById('editReservationIndex').value);
+    const reservation = reservations[index];
+    
+    if (!reservation.voiceActors) {
+        reservation.voiceActors = [];
+    }
+    
+    reservation.voiceActors.push({ name, fee });
+    
+    // تحديث القائمة
+    const actorsList = document.getElementById('editActorsList');
+    const actorIndex = reservation.voiceActors.length - 1;
+    
+    const actorElement = document.createElement('div');
+    actorElement.style = "margin:5px 0;background:#fff;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;display:flex;justify-content:space-between;align-items:center;";
+    actorElement.innerHTML = `
+        <div><strong>${name}</strong> - ${fee} ريال</div>
+        <button class="btn btn-sm btn-danger" style="margin: 0;" onclick="removeActorFromEdit(${actorIndex})">
+            <i class='bx bx-x'></i>
+        </button>
+    `;
+    actorsList.appendChild(actorElement);
+    
+    document.getElementById('editTempActorName').value = '';
+    document.getElementById('editTempActorFee').value = '';
+}
+
+function removeActorFromEdit(actorIndex) {
+    const resIndex = parseInt(document.getElementById('editReservationIndex').value);
+    const reservation = reservations[resIndex];
+    
+    reservation.voiceActors.splice(actorIndex, 1);
+    
+    // إعادة عرض القائمة
+    const actorsList = document.getElementById('editActorsList');
+    actorsList.innerHTML = '';
+    reservation.voiceActors.forEach((actor, idx) => {
+        const actorElement = document.createElement('div');
+        actorElement.style = "margin:5px 0;background:#fff;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;display:flex;justify-content:space-between;align-items:center;";
+        actorElement.innerHTML = `
+            <div><strong>${actor.name}</strong> - ${actor.fee} ريال</div>
+            <button class="btn btn-sm btn-danger" style="margin: 0;" onclick="removeActorFromEdit(${idx})">
+                <i class='bx bx-x'></i>
+            </button>
+        `;
+        actorsList.appendChild(actorElement);
+    });
+}
+
+function saveReservationEdit() {
+    const index = parseInt(document.getElementById('editReservationIndex').value);
+    const client = document.getElementById('editResClient').value.trim();
+    const recordTime = document.getElementById('editResTime').value;
+    const workPrice = parseFloat(document.getElementById('editResWorkPrice').value) || 0;
+    const invoiceNumber = document.getElementById('editResInvoiceNumber').value;
+    const actorDueDate = document.getElementById('editResDueDate').value;
+    const actorPaid = document.getElementById('editResPaid').checked;
+    const notes = document.getElementById('editResNotes').value;
+    
+    if (!client || !recordTime || !workPrice) {
+        alert("يرجى تعبئة الحقول المطلوبة");
+        return;
+    }
+    
+    // حفظ حالة النظام قبل التغيير
+    saveState();
+    
+    reservations[index].client = client;
+    reservations[index].recordTime = recordTime;
+    reservations[index].workPrice = workPrice;
+    reservations[index].invoiceNumber = invoiceNumber;
+    reservations[index].actorDueDate = actorDueDate;
+    reservations[index].actorPaid = actorPaid;
+    reservations[index].notes = notes;
+    
+    // تحديث الإحصائيات
+    updateAllStatistics();
+    
+    closeModal('editReservationModal');
+    
+    // تحديث جدول الحجوزات
+    renderReservationsTable();
+    
+    // تحديث التقارير بعد تعديل الحجز - إضافة هذا السطر لضمان تحديث التقارير
+    renderReports();
+}
+
+// إضافة وظيفة لعرض جدول الحجوزات
+function renderReservationsTable() {
+    const reservationsTable = document.querySelector('#reservations table tbody');
+    if (!reservationsTable) return;
+    
+    reservationsTable.innerHTML = '';
+    
+    reservations.forEach((res, index) => {
+        const row = document.createElement('tr');
+        
+        const totalActorFees = res.voiceActors.reduce((sum, actor) => sum + actor.fee, 0);
+        const studioRevenue = res.workPrice - totalActorFees;
+        
+        // التحقق من وجود ربط بالفاتورة
+        const linkedInvoice = invoices.find(inv => inv.invoiceNumber === res.invoiceNumber);
+        const hasValidInvoice = linkedInvoice !== undefined;
+        
+        // إضافة صف ملون إذا لم يكن الحجز مرتبطًا بفاتورة صالحة
+        if (res.invoiceNumber && !hasValidInvoice) {
+            row.classList.add('unlinked');
+        }
+        
+        row.innerHTML = `
+            <td>${res.id}</td>
+            <td>${res.client}</td>
+            <td>${res.recordTime.replace('T', ' ')}</td>
+            <td>${res.workPrice} ريال</td>
+            <td>${totalActorFees} ريال</td>
+            <td>${studioRevenue} ريال</td>
+            <td>${res.invoiceNumber ? 
+                `<span style="color:${hasValidInvoice ? 'inherit' : 'var(--danger-color)'}">${res.invoiceNumber}</span>` : 
+                '<button class="btn btn-sm btn-outline" onclick="showLinkInvoiceOptions(${index})"><i class="bx bx-link"></i> ربط</button>'}</td>
+            <td>${res.invoicePaid ? 'نعم' : 'لا'}</td>
+            <td>
+                <button class="btn btn-sm" onclick="editReservation(${index})">
+                    <i class='bx bx-edit'></i> تعديل
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteReservation(${index})">
+                    <i class='bx bx-trash'></i> حذف
+                </button>
+            </td>
+        `;
+        
+        reservationsTable.appendChild(row);
+    });
+}
+
+// إضافة وظيفة لحذف الحجز
+function deleteReservation(index) {
+    if (!confirm('هل أنت متأكد من حذف هذا الحجز؟')) return;
+    
+    saveState();
+    reservations.splice(index, 1);
+    renderReservationsTable();
+    updateAllStatistics();
+    
+    // تحديث التقارير بعد حذف الحجز - إضافة هذا السطر لضمان تحديث التقارير
+    renderReports();
+}
+
+// إضافة وظيفة إضافة معلق مؤقت لحجز جديد
+function addTempActorToNew() {
+    const name = document.getElementById('tempActorName').value.trim();
+    const fee = parseFloat(document.getElementById('tempActorFee').value) || 0;
+    
+    if (!name) {
+        alert("يرجى إدخال اسم المعلق");
+        return;
+    }
+    
+    const actorsList = document.querySelector('#newReservationModal .modal-content div[style*="background:var(--primary-light)"]');
+    const actorCount = actorsList.children.length;
+    
+    const actorElement = document.createElement('div');
+    actorElement.style = "margin:5px 0;background:#fff;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;display:flex;justify-content:space-between;align-items:center;";
+    actorElement.innerHTML = `
+        <div><strong>${name}</strong> - ${fee} ريال</div>
+        <button class="btn btn-sm btn-danger" style="margin: 0;" onclick="removeNewActor(${actorCount})">
+            <i class='bx bx-x'></i>
+        </button>
+    `;
+    actorsList.appendChild(actorElement);
+    
+    document.getElementById('tempActorName').value = '';
+    document.getElementById('tempActorFee').value = '';
+}
+
+function removeNewActor(index) {
+    const actorsList = document.querySelector('#newReservationModal .modal-content div[style*="background:var(--primary-light)"]');
+    if (actorsList.children[index]) {
+        actorsList.removeChild(actorsList.children[index]);
+    }
+}
+
+// تهيئة الرسوم البيانية
+function initCharts() {
+    // إعداد الرسم البياني الخطي للحجوزات
+    const reservationCtx = document.getElementById('reservationChart').getContext('2d');
+    
+    // معالجة بيانات الحجوزات حسب التاريخ
+    const reservationsByDate = processReservationsByDate(reservations);
+    const reservationLabels = Object.keys(reservationsByDate).sort();
+    const reservationData = reservationLabels.map(date => reservationsByDate[date]);
+
+    reservationChart = new Chart(reservationCtx, {
+        type: 'line',
+        data: {
+            labels: reservationLabels,
+            datasets: [{
+                label: 'عدد الحجوزات',
+                data: reservationData,
+                borderColor: '#12846e',
+                backgroundColor: 'rgba(18, 132, 110, 0.1)',
+                fill: true,
+                tension: 0.3,
+                borderWidth: 2,
+                pointBackgroundColor: '#12846e',
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true },
+                tooltip: { 
+                    mode: "index", 
+                    intersect: false,
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            return 'التاريخ: ' + tooltipItems[0].label;
+                        },
+                        label: function(context) {
+                            return 'عدد الحجوزات: ' + context.raw;
+                        }
+                    }
+                }
+            },
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'عدد الحجوزات'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'التاريخ'
+                    }
+                }
+            }
+        }
+    });
+    
+    // إعداد الرسم البياني العمودي للحجوزات
+    const reservationBarCtx = document.getElementById('reservationBarChart').getContext('2d');
+    
+    // معالجة بيانات الحجوزات حسب العميل
+    const reservationsByClient = processReservationsByClient(reservations);
+    const clientLabels = Object.keys(reservationsByClient).slice(0, 6); // تحديد أول 6 عملاء
+    const clientData = clientLabels.map(client => reservationsByClient[client]);
+    
+    reservationBarChart = new Chart(reservationBarCtx, {
+        type: 'bar',
+        data: {
+            labels: clientLabels,
+            datasets: [{
+                label: 'عدد الحجوزات',
+                data: clientData,
+                backgroundColor: [
+                    '#12846e',
+                    '#2ecc71',
+                    '#3498db',
+                    '#9b59b6',
+                    '#f1c40f',
+                    '#e67e22'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            return 'العميل: ' + tooltipItems[0].label;
+                        },
+                        label: function(context) {
+                            return 'عدد الحجوزات: ' + context.raw;
+                        }
+                    }
+                }
+            },
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'عدد الحجوزات'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'العميل'
+                    }
+                }
+            }
+        }
+    });
+    
+    // إعداد مخطط الإيرادات والمصروفات
+    const revenueExpenseCtx = document.getElementById('revenueExpenseChart').getContext('2d');
+    
+    // معالجة البيانات المالية حسب الشهر
+    const financialData = processFinancialData(reservations, invoices);
+    const financialLabels = Object.keys(financialData).sort();
+    const revenueData = financialLabels.map(month => financialData[month].revenue);
+    const expenseData = financialLabels.map(month => financialData[month].expense);
+    
+    revenueExpenseChart = new Chart(revenueExpenseCtx, {
+        type: 'line',
+        data: {
+            labels: financialLabels,
+            datasets: [
+                {
+                    label: 'الإيرادات',
+                    data: revenueData,
+                    borderColor: '#2ecc71',
+                    backgroundColor: 'rgba(46, 204, 113, 0.05)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: 'المصروفات',
+                    data: expenseData,
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.05)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true },
+                tooltip: { 
+                    mode: "index", 
+                    intersect: false,
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            return 'الشهر: ' + tooltipItems[0].label;
+                        },
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.raw + ' ريال';
+                        }
+                    }
+                }
+            },
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'المبلغ (ريال)'
+                    }
+                }
+            }
+        }
+    });
+    
+    // إعداد مخطط إيرادات الفواتير
+    const invoiceRevenueCtx = document.getElementById('invoiceRevenueChart').getContext('2d');
+    
+    // معالجة بيانات الفواتير حسب الشهر
+    const invoiceRevenue = processInvoiceRevenue(invoices);
+    const invoiceLabels = Object.keys(invoiceRevenue).sort();
+    const invoiceData = invoiceLabels.map(month => invoiceRevenue[month]);
+
+    invoiceRevenueChart = new Chart(invoiceRevenueCtx, {
+        type: 'line',
+        data: {
+            labels: invoiceLabels,
+            datasets: [{
+                label: 'إيرادات الفواتير',
+                data: invoiceData,
+                borderColor: '#3498db',
+                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                fill: true,
+                tension: 0.3,
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true },
+                tooltip: { 
+                    mode: "index", 
+                    intersect: false,
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            return 'الشهر: ' + tooltipItems[0].label;
+                        },
+                        label: function(context) {
+                            return 'الإيرادات: ' + context.raw + ' ريال';
+                        }
+                    }
+                }
+            },
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'الإيرادات (ريال)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Helper functions for chart data processing
+
+// Process reservations by date
+function processReservationsByDate(reservationData) {
+    const reservationsByDate = {};
+    
+    reservationData.forEach(reservation => {
+        // Extract date part only from recordTime
+        const date = reservation.recordTime.split('T')[0];
+        
+        if (!reservationsByDate[date]) {
+            reservationsByDate[date] = 0;
+        }
+        
+        reservationsByDate[date]++;
+    });
+    
+    return reservationsByDate;
+}
+
+// Process reservations by client
+function processReservationsByClient(reservationData) {
+    const reservationsByClient = {};
+    
+    reservationData.forEach(reservation => {
+        const client = reservation.client;
+        
+        if (!reservationsByClient[client]) {
+            reservationsByClient[client] = 0;
+        }
+        
+        reservationsByClient[client]++;
+    });
+    
+    // Sort by count descending and return
+    return Object.fromEntries(
+        Object.entries(reservationsByClient)
+            .sort(([,a], [,b]) => b - a)
+    );
+}
+
+// Process financial data by month
+function processFinancialData(reservationData, invoiceData) {
+    const financialByMonth = {};
+    
+    // Process revenue from reservations
+    reservationData.forEach(reservation => {
+        const date = new Date(reservation.recordTime);
+        const monthYear = `${date.getMonth() + 1}/${date.getFullYear()}`;
+        
+        if (!financialByMonth[monthYear]) {
+            financialByMonth[monthYear] = { revenue: 0, expense: 0 };
+        }
+        
+        financialByMonth[monthYear].revenue += reservation.workPrice;
+        
+        // Add actor fees as expenses
+        const actorFees = reservation.voiceActors.reduce((sum, actor) => sum + actor.fee, 0);
+        financialByMonth[monthYear].expense += actorFees;
+    });
+    
+    // Add monthly expenses to each month
+    Object.keys(financialByMonth).forEach(month => {
+        financialByMonth[month].expense += monthlyExpense;
+    });
+    
+    return financialByMonth;
+}
+
+// Process invoice revenue by month
+function processInvoiceRevenue(invoiceData) {
+    const revenueByMonth = {};
+    
+    invoiceData.forEach(invoice => {
+        if (!invoice.date) return;
+        
+        const date = new Date(invoice.date);
+        const monthYear = `${date.getMonth() + 1}/${date.getFullYear()}`;
+        
+        if (!revenueByMonth[monthYear]) {
+            revenueByMonth[monthYear] = 0;
+        }
+        
+        revenueByMonth[monthYear] += invoice.isPaid ? invoice.receivedAmount : 0;
+    });
+    
+    return revenueByMonth;
+}
+
+// Function to update charts when data changes
+function updateCharts(groupBy = 'day') {
+    // Update reservation charts
+    if (reservationChart && reservationBarChart) {
+        let labels, data;
+        
+        if (groupBy === 'day') {
+            const reservationsByDate = processReservationsByDate(reservations);
+            labels = Object.keys(reservationsByDate).sort();
+            data = labels.map(date => reservationsByDate[date]);
+            
+            // Update line chart
+            reservationChart.data.labels = labels;
+            reservationChart.data.datasets[0].data = data;
+            reservationChart.update();
+            
+            // Keep bar chart with client data
+        } else if (groupBy === 'month') {
+            // Group by month
+            const reservationsByMonth = {};
+            
+            reservations.forEach(reservation => {
+                const date = new Date(reservation.recordTime);
+                const monthYear = `${date.getMonth() + 1}/${date.getFullYear()}`;
+                
+                if (!reservationsByMonth[monthYear]) {
+                    reservationsByMonth[monthYear] = 0;
+                }
+                
+                reservationsByMonth[monthYear]++;
+            });
+            
+            labels = Object.keys(reservationsByMonth).sort();
+            data = labels.map(month => reservationsByMonth[month]);
+            
+            // Update line chart
+            reservationChart.data.labels = labels;
+            reservationChart.data.datasets[0].data = data;
+            reservationChart.update();
+            
+            // Update financial charts too
+            updateFinancialCharts('month');
+        } else if (groupBy === 'year') {
+            // Group by year
+            const reservationsByYear = {};
+            
+            reservations.forEach(reservation => {
+                const date = new Date(reservation.recordTime);
+                const year = date.getFullYear();
+                
+                if (!reservationsByYear[year]) {
+                    reservationsByYear[year] = 0;
+                }
+                
+                reservationsByYear[year]++;
+            });
+            
+            labels = Object.keys(reservationsByYear).sort();
+            data = labels.map(year => reservationsByYear[year]);
+            
+            // Update line chart
+            reservationChart.data.labels = labels;
+            reservationChart.data.datasets[0].data = data;
+            reservationChart.update();
+            
+            // Update financial charts too
+            updateFinancialCharts('year');
+        }
+    }
+}
+
+// Update financial charts based on grouping
+function updateFinancialCharts(groupBy) {
+    if (revenueExpenseChart && invoiceRevenueChart) {
+        let financialData, invoiceData;
+        
+        if (groupBy === 'month') {
+            financialData = processFinancialData(reservations, invoices);
+            invoiceData = processInvoiceRevenue(invoices);
+        } else if (groupBy === 'year') {
+            // Group financial data by year
+            financialData = {};
+            invoiceData = {};
+            
+            reservations.forEach(reservation => {
+                const date = new Date(reservation.recordTime);
+                const year = date.getFullYear().toString();
+                
+                if (!financialData[year]) {
+                    financialData[year] = { revenue: 0, expense: monthlyExpense * 12 };
+                }
+                
+                financialData[year].revenue += reservation.workPrice;
+                
+                // Add actor fees as expenses
+                const actorFees = reservation.voiceActors.reduce((sum, actor) => sum + actor.fee, 0);
+                financialData[year].expense += actorFees;
+            });
+            
+            invoices.forEach(invoice => {
+                if (!invoice.date) return;
+                
+                const date = new Date(invoice.date);
+                const year = date.getFullYear().toString();
+                
+                if (!invoiceData[year]) {
+                    invoiceData[year] = 0;
+                }
+                
+                invoiceData[year] += invoice.isPaid ? invoice.receivedAmount : 0;
+            });
+        }
+        
+        // Update revenue expense chart
+        const financialLabels = Object.keys(financialData).sort();
+        const revenueData = financialLabels.map(period => financialData[period].revenue);
+        const expenseData = financialLabels.map(period => financialData[period].expense);
+        
+        revenueExpenseChart.data.labels = financialLabels;
+        revenueExpenseChart.data.datasets[0].data = revenueData;
+        revenueExpenseChart.data.datasets[1].data = expenseData;
+        revenueExpenseChart.update();
+        
+        // Update invoice chart
+        const invoiceLabels = Object.keys(invoiceData).sort();
+        const invoiceValues = invoiceLabels.map(period => invoiceData[period]);
+        
+        invoiceRevenueChart.data.labels = invoiceLabels;
+        invoiceRevenueChart.data.datasets[0].data = invoiceValues;
+        invoiceRevenueChart.update();
+    }
+}
+
+// وظائف القوائم المنسدلة
+function populateDatalists() {
+    // تعبئة قائمة العملاء
+    const clientList = document.getElementById("clientList");
+    clientList.innerHTML = clients.map(c => `<option value="${c.name}">`).join("");
+    
+    // تعبئة قائمة الفواتير
+    const invoiceList = document.getElementById("invoiceList");
+    invoiceList.innerHTML = '<option value="INV2025-01"></option><option value="INV2025-02"></option>';
+}
+
+// وظائف تحديث الإحصائيات
+function updateBalance() {
+    const newBalanceInput = document.getElementById("newBalance");
+    const newBalance = parseFloat(newBalanceInput.value);
+    
+    if (isNaN(newBalance)) {
+        alert("الرجاء إدخال رقم صالح للرصيد");
+        return;
+    }
+    
+    balance = newBalance;
+    document.getElementById("balanceSpan").textContent = newBalance.toLocaleString();
+    
+    const available = balance > minBalance ? (balance - minBalance) : 0;
+    document.getElementById("availableFunds").textContent = available.toLocaleString();
+    
+    newBalanceInput.value = "";
+    saveState();
+}
+
+// وظائف المعلقين
+function addVoiceActor() {
+    const nameInput = document.getElementById("voiceName");
+    const rateInput = document.getElementById("voiceRate");
+    const name = nameInput.value.trim();
+    const rate = parseFloat(rateInput.value) || 0;
+    
+    if (!name) {
+        alert("يرجى إدخال اسم المعلق");
+        return;
+    }
+    
+    saveState();
+    
+    voices.push({ name, rate });
+    
+    // تحديث الجدول
+    const voicesTable = document.getElementById("voicesTable");
+    const newRow = voicesTable.insertRow(-1);
+    const nameCell = newRow.insertCell(0);
+    const rateCell = newRow.insertCell(1);
+    const actionsCell = newRow.insertCell(2);
+    
+    nameCell.textContent = name;
+    rateCell.textContent = `${rate} ريال`;
+    const index = voices.length - 1;
+    actionsCell.innerHTML = `
+        <button class="btn btn-sm" onclick="editVoiceActor(${index})">
+            <i class='bx bx-edit'></i> تعديل
+        </button>
+    `;
+    
+    // تفريغ الحقول
+    nameInput.value = "";
+    rateInput.value = "";
+}
+
+// وظائف العملاء
+function addClient() {
+    const nameInput = document.getElementById("clientName");
+    const name = nameInput.value.trim();
+    
+    if (!name) {
+        alert("يرجى إدخال اسم العميل");
+        return;
+    }
+    
+    saveState();
+    
+    clients.push({ name, addedTime: Date.now() });
+    
+    // تحديث القوائم المنسدلة
+    populateDatalists();
+    
+    // تفريغ الحقل
+    nameInput.value = "";
+    
+    alert("تم إضافة العميل بنجاح");
+}
+
+function sortClientsAsc() {
+    alert("تم ترتيب العملاء من الأقدم للأحدث");
+}
+
+function sortClientsDesc() {
+    alert("تم ترتيب العملاء من الأحدث للأقدم");
+}
+
+function loadCSVClients() {
+    const fileInput = document.getElementById('csvInput');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert("يرجى اختيار ملف CSV أولاً");
+        return;
+    }
+    
+    // تحقق من نوع الملف
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+        alert("يرجى اختيار ملف بصيغة CSV صالحة");
+        return;
+    }
+    
+    const reader = new FileReader();
+    
+    reader.onload = function(event) {
+        try {
+            // حفظ الحالة قبل التغيير للتراجع
+            saveState();
+            
+            const csvData = event.target.result;
+            const clientsData = parseCSVData(csvData);
+            
+            if (clientsData.length === 0) {
+                alert("لم يتم العثور على بيانات عملاء في الملف");
+                return;
+            }
+            
+            // إضافة العملاء الجدد
+            for (const clientData of clientsData) {
+                // التحقق من وجود اسم العميل على الأقل
+                if (!clientData.Name || clientData.Name.trim() === '') continue;
+                
+                // تحقق ما إذا كان العميل موجود بالفعل لتجنب التكرار
+                const existingClient = clients.find(c => c.name.toLowerCase() === clientData.Name.trim().toLowerCase());
+                if (existingClient) continue;
+                
+                // إضافة عميل جديد مع بيانات إضافية
+                clients.push({
+                    name: clientData.Name.trim(),
+                    email: clientData.Email || '',
+                    phone: clientData.Phone || '',
+                    tax: clientData.Tax || '',
+                    address1: clientData.Address1 || '',
+                    address2: clientData.Address2 || '',
+                    address3: clientData.Address3 || '',
+                    shippingAddress1: clientData.ShippingAddress1 || '',
+                    shippingAddress2: clientData.ShippingAddress2 || '',
+                    shippingAddress3: clientData.ShippingAddress3 || '',
+                    addedTime: Date.now()
+                });
+            }
+            
+            // تحديث القوائم المنسدلة
+            populateDatalists();
+            
+            // تحديث جدول العملاء
+            updateClientsTable();
+            
+            // تنبيه المستخدم
+            alert(`تم استيراد ${clientsData.length} عميل بنجاح`);
+            
+            // مسح الملف المختار للسماح باختيار نفس الملف مرة أخرى
+            fileInput.value = '';
+            
+        } catch (error) {
+            console.error("خطأ في معالجة ملف CSV:", error);
+            alert("حدث خطأ أثناء معالجة الملف. يرجى التأكد من صحة تنسيق الملف.");
+        }
+    };
+    
+    reader.onerror = function() {
+        alert("حدث خطأ في قراءة الملف");
+    };
+    
+    reader.readAsText(file);
+}
+
+// وظائف تعديل أو استيراد الفواتير
+function triggerInvoiceImport() {
+    document.getElementById("invoiceImportFile").click();
+}
+
+function importInvoices(fileInput) {
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert("يرجى اختيار ملف للاستيراد");
+        return;
+    }
+    
+    // التحقق من نوع الملف
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls') && !file.name.endsWith('.csv')) {
+        alert("يرجى اختيار ملف Excel أو CSV");
+        return;
+    }
+    
+    saveState(); // حفظ الحالة قبل التغيير
+    
+    // قراءة الملف باستخدام SheetJS
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            const data = e.target.result;
+            
+            // استخراج البيانات من الملف
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+            
+            if (jsonData.length === 0) {
+                alert("لم يتم العثور على بيانات في الملف");
+                return;
+            }
+            
+            // طباعة البيانات المستخرجة للتصحيح
+            console.log("بيانات الفواتير المستوردة:", jsonData);
+            
+            const currentDate = new Date().toLocaleString();
+            let importedCount = 0;
+            
+            jsonData.forEach(row => {
+                // نحدد الحقول المتوقعة بالضبط كما في الملف
+                // Invoice #    Date    Customer        Customer Email  Additional Info.        Subtotal        Tax1    Tax2    Invoice Amount  Received Amount Date of Payment Received
+                const invoiceNumber = String(row['Invoice #'] || '').trim();
+                const date = row['Date'] || '';
+                const customer = row['Customer'] || '';
+                const email = row['Customer Email'] || '';
+                const additionalInfo = row['Additional Info.'] || '';
+                const subtotal = isNaN(parseFloat(row['Subtotal'])) ? 0 : parseFloat(row['Subtotal']);
+                const tax1 = isNaN(parseFloat(row['Tax1'])) ? 0 : parseFloat(row['Tax1']);
+                const tax2 = isNaN(parseFloat(row['Tax2'])) ? 0 : parseFloat(row['Tax2']);
+                const invoiceAmount = isNaN(parseFloat(row['Invoice Amount'])) ? 0 : parseFloat(row['Invoice Amount']);
+                const receivedAmount = isNaN(parseFloat(row['Received Amount'])) ? 0 : parseFloat(row['Received Amount']);
+                const paymentDate = row['Date of Payment Received'] || '';
+                
+                // تخطي الصفوف بدون رقم فاتورة
+                if (!invoiceNumber) {
+                    console.log("تم تخطي صف بدون رقم فاتورة:", row);
+                    return;
+                }
+                
+                // التحقق مما إذا كانت الفاتورة موجودة بالفعل
+                const existingInvoiceIndex = invoices.findIndex(inv => inv.invoiceNumber === invoiceNumber);
+                
+                // معلومات الفاتورة من الملف المستورد
+                const newInvoice = {
+                    invoiceNumber: invoiceNumber,
+                    date: formatExcelDate(date),
+                    customer: customer || 'غير محدد',
+                    email: email,
+                    additionalInfo: additionalInfo,
+                    subtotal: subtotal,
+                    tax1: tax1,
+                    tax2: tax2,
+                    invoiceAmount: invoiceAmount || (subtotal + tax1 + tax2),
+                    receivedAmount: receivedAmount,
+                    paymentDate: formatExcelDate(paymentDate),
+                    isPaid: receivedAmount > 0
+                };
+                
+                console.log("تمت معالجة الفاتورة:", newInvoice);
+                
+                if (existingInvoiceIndex !== -1) {
+                    // تحديث الفاتورة الموجودة
+                    invoices[existingInvoiceIndex] = newInvoice;
+                } else {
+                    // إضافة فاتورة جديدة
+                    invoices.push(newInvoice);
+                }
+                
+                // تسجيل العملية في سجل الفواتير
+                invoiceAuditLog.push({
+                    operation: "Import",
+                    invoiceNumber: invoiceNumber,
+                    date: currentDate
+                });
+                
+                // تحديث حالة الفاتورة في الحجوزات المرتبطة
+                updateReservationsWithInvoice(newInvoice);
+                
+                importedCount++;
+            });
+            
+            // تحديث جدول الفواتير
+            renderInvoicesTable();
+            
+            // تحديث جدول سجل الفواتير
+            renderInvoiceAuditLogTable();
+            
+            // تحديث القوائم المنسدلة للفواتير
+            populateInvoiceDatalist();
+            
+            // محاولة الربط التلقائي للحجوزات بالفواتير الجديدة
+            const matchCount = autoMatchReservationsWithInvoices();
+            
+            // تنبيه المستخدم
+            alert(`تم استيراد ${importedCount} فاتورة بنجاح وربط ${matchCount} حجز تلقائياً`);
+            
+            // إعادة تعيين حقل الملف للسماح بتحديد نفس الملف مرة أخرى
+            fileInput.value = '';
+            
+        } catch (error) {
+            console.error("خطأ في استيراد الفواتير:", error);
+            alert("حدث خطأ أثناء استيراد الفواتير: " + error.message);
+        }
+    };
+    
+    reader.onerror = function() {
+        alert("حدث خطأ أثناء قراءة الملف");
+        fileInput.value = '';
+    };
+    
+    reader.readAsBinaryString(file);
+}
+
+// معالجة تنسيقات التاريخ المختلفة من Excel
+function formatExcelDate(dateValue) {
+    if (!dateValue) return '';
+    
+    // محاولة معالجة التاريخ كرقم تسلسلي من Excel
+    if (!isNaN(dateValue) && dateValue > 0) {
+        // تحويل الرقم التسلسلي من Excel إلى تاريخ JavaScript
+        // Excel يبدأ من 1/1/1900
+        const excelEpoch = new Date(1899, 11, 30);
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const date = new Date(excelEpoch.getTime() + (parseInt(dateValue) * msPerDay));
+        
+        // تنسيق إلى صيغة YYYY-MM-DD
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+    
+    // محاولة تفسير التاريخ كنص
+    try {
+        const date = new Date(dateValue);
+        if (!isNaN(date.getTime())) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+    } catch (e) {
+        // في حالة الخطأ، إرجاع النص الأصلي
+        return dateValue;
+    }
+    
+    return dateValue;
+}
+
+// تحديث الحجوزات المرتبطة بفاتورة
+function updateReservationsWithInvoice(invoice) {
+    reservations.forEach(reservation => {
+        if (reservation.invoiceNumber === invoice.invoiceNumber) {
+            reservation.invoicePaid = invoice.isPaid;
+            if (invoice.isPaid && invoice.paymentDate) {
+                reservation.paidDate = invoice.paymentDate;
+            }
+        }
+    });
+}
+
+// عرض جدول الفواتير
+function renderInvoicesTable() {
+    const invoicesTable = document.querySelector('#invoices table tbody');
+    if (!invoicesTable) return;
+    
+    invoicesTable.innerHTML = '';
+    
+    // طباعة البيانات للتصحيح
+    console.log("عدد الفواتير للعرض:", invoices.length);
+    
+    if (invoices.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = '<td colspan="8" style="text-align:center">لا توجد فواتير للعرض. قم باستيراد الفواتير لبدء العمل.</td>';
+        invoicesTable.appendChild(emptyRow);
+        return;
+    }
+    
+    invoices.forEach((invoice, index) => {
+        const row = document.createElement('tr');
+        
+        // طباعة تفاصيل الفاتورة للتصحيح
+        console.log(`فاتورة #${index}:`, invoice);
+        
+        row.innerHTML = `
+            <td>${invoice.invoiceNumber || '-'}</td>
+            <td>${invoice.date || '-'}</td>
+            <td>${invoice.customer || '-'}</td>
+            <td>${formatCurrency(invoice.invoiceAmount)}</td>
+            <td>${formatCurrency(invoice.receivedAmount)}</td>
+            <td>${invoice.paymentDate || '-'}</td>
+            <td>${invoice.isPaid ? 
+                '<span style="color:var(--success-color)">مدفوعة</span>' : 
+                '<span style="color:var(--warning-color)">غير مدفوعة</span>'}</td>
+            <td>
+                <button class="btn btn-sm" onclick="editInvoice(${index})">
+                    <i class='bx bx-edit'></i> تعديل
+                </button>
+                ${!invoice.isPaid ? 
+                    `<button class="btn btn-sm" style="background-color:var(--success-color)" onclick="markInvoiceAsPaid(${index})">
+                        <i class='bx bx-check'></i> تعليم كمدفوعة
+                    </button>` : ''
+                }
+                <button class="btn btn-sm btn-danger" onclick="deleteInvoice(${index})">
+                    <i class='bx bx-trash'></i> حذف
+                </button>
+            </td>
+        `;
+        
+        // إضافة لون خلفية مختلف للفواتير غير المدفوعة المتأخرة
+        if (!invoice.isPaid && isOverdue(invoice.date)) {
+            row.style.backgroundColor = "#fff0f0";
+        }
+        
+        invoicesTable.appendChild(row);
+    });
+}
+
+// تنسيق المبالغ بإضافة الفواصل للآلاف
+function formatCurrency(amount) {
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) return '0 ريال';
+    return `${numAmount.toLocaleString()} ريال`;
+}
+
+// التحقق ما إذا كان التاريخ متأخراً (أكثر من 30 يوم)
+function isOverdue(dateString) {
+    if (!dateString) return false;
+    
+    const invoiceDate = new Date(dateString);
+    if (isNaN(invoiceDate.getTime())) return false;
+    
+    const today = new Date();
+    const differenceInTime = today - invoiceDate;
+    const differenceInDays = differenceInTime / (1000 * 3600 * 24);
+    
+    return differenceInDays > 30;
+}
+
+// حذف النسخة المكررة من renderInvoicesTable هنا إذا وجدت
+
+// إنشاء مودال تعديل الفاتورة
+function createEditInvoiceModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'editInvoiceModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('editInvoiceModal')">×</button>
+            <h3>تعديل بيانات الفاتورة</h3>
+            <input type="hidden" id="editInvoiceIndex">
+            <label>رقم الفاتورة</label>
+            <input type="text" id="editInvoiceNumber" class="input" placeholder="رقم الفاتورة">
+            <label>العميل</label>
+            <input type="text" id="editInvoiceCustomer" class="input" placeholder="اسم العميل">
+            <label>تاريخ الفاتورة</label>
+            <input type="date" id="editInvoiceDate" class="input">
+            <label>المبلغ الفرعي</label>
+            <input type="number" id="editInvoiceSubtotal" class="input" placeholder="المبلغ الفرعي">
+            <label>الضريبة</label>
+            <input type="number" id="editInvoiceTax1" class="input" placeholder="قيمة الضريبة">
+            <label>مبلغ الفاتورة الإجمالي</label>
+            <input type="number" id="editInvoiceAmount" class="input" placeholder="المبلغ الإجمالي">
+            <label>المبلغ المستلم</label>
+            <input type="number" id="editInvoiceReceived" class="input" placeholder="المبلغ المستلم">
+            <label>تاريخ الاستلام</label>
+            <input type="date" id="editInvoicePaymentDate" class="input">
+            <div style="margin: 12px 0;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                    <input type="checkbox" id="editInvoicePaid" style="width: 18px; height: 18px;">
+                    <span>تم الدفع؟</span>
+                </label>
+            </div>
+            <button class="btn" onclick="saveInvoiceEdit()">
+                <i class='bx bx-save'></i> حفظ التغييرات
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// تحرير بيانات الفاتورة
+function editInvoice(index) {
+    const invoice = invoices[index];
+    if (!invoice) return;
+    
+    // إنشاء مودال تعديل الفاتورة إذا لم يكن موجودا
+    if (!document.getElementById('editInvoiceModal')) {
+        createEditInvoiceModal();
+    }
+    
+    // تعبئة المودال بالبيانات
+    document.getElementById('editInvoiceIndex').value = index;
+    document.getElementById('editInvoiceNumber').value = invoice.invoiceNumber;
+    document.getElementById('editInvoiceCustomer').value = invoice.customer;
+    document.getElementById('editInvoiceDate').value = invoice.date;
+    document.getElementById('editInvoiceSubtotal').value = invoice.subtotal;
+    document.getElementById('editInvoiceTax1').value = invoice.tax1;
+    document.getElementById('editInvoiceAmount').value = invoice.invoiceAmount;
+    document.getElementById('editInvoiceReceived').value = invoice.receivedAmount;
+    document.getElementById('editInvoicePaymentDate').value = invoice.paymentDate;
+    document.getElementById('editInvoicePaid').checked = invoice.isPaid;
+    
+    // عرض المودال
+    document.getElementById('editInvoiceModal').classList.add('active');
+}
+
+// حفظ تغييرات الفاتورة
+function saveInvoiceEdit() {
+    const index = parseInt(document.getElementById('editInvoiceIndex').value);
+    const invoice = invoices[index];
+    if (!invoice) return;
+    
+    const newInvoiceNumber = document.getElementById('editInvoiceNumber').value.trim();
+    const customerName = document.getElementById('editInvoiceCustomer').value.trim();
+    const invoiceDate = document.getElementById('editInvoiceDate').value;
+    const subtotal = parseFloat(document.getElementById('editInvoiceSubtotal').value) || 0;
+    const tax1 = parseFloat(document.getElementById('editInvoiceTax1').value) || 0;
+    const invoiceAmount = parseFloat(document.getElementById('editInvoiceAmount').value) || 0;
+    const receivedAmount = parseFloat(document.getElementById('editInvoiceReceived').value) || 0;
+    const paymentDate = document.getElementById('editInvoicePaymentDate').value;
+    const isPaid = document.getElementById('editInvoicePaid').checked;
+    
+    if (!newInvoiceNumber || !customerName) {
+        alert('يرجى تعبئة الحقول المطلوبة');
+        return;
+    }
+    
+    saveState();
+    
+    // تخزين رقم الفاتورة القديم للتحديث في الحجوزات
+    const oldInvoiceNumber = invoice.invoiceNumber;
+    
+    // تحديث بيانات الفاتورة
+    invoice.invoiceNumber = newInvoiceNumber;
+    invoice.customer = customerName;
+    invoice.date = invoiceDate;
+    invoice.subtotal = subtotal;
+    invoice.tax1 = tax1;
+    invoice.invoiceAmount = invoiceAmount;
+    invoice.receivedAmount = receivedAmount;
+    invoice.paymentDate = paymentDate;
+    invoice.isPaid = isPaid;
+    
+    // تحديث الحجوزات المرتبطة إذا تغير رقم الفاتورة
+    if (oldInvoiceNumber !== newInvoiceNumber) {
+        reservations.forEach(reservation => {
+            if (reservation.invoiceNumber === oldInvoiceNumber) {
+                reservation.invoiceNumber = newInvoiceNumber;
+            }
+        });
+    }
+    
+    // تحديث حالة الدفع في الحجوزات المرتبطة
+    reservations.forEach(reservation => {
+        if (reservation.invoiceNumber === newInvoiceNumber) {
+            reservation.invoicePaid = isPaid;
+            if (isPaid && paymentDate) {
+                reservation.paidDate = paymentDate;
+            }
+        }
+    });
+    
+    // تحديث العرض
+    renderInvoicesTable();
+    renderReservationsTable();
+    populateInvoiceDatalist();
+    
+    // تحديث الإحصائيات
+    updateAllStatistics();
+    
+    // إضافة سجل العملية
+    invoiceAuditLog.push({
+        operation: "Edit",
+        invoiceNumber: newInvoiceNumber,
+        date: new Date().toLocaleString()
+    });
+    
+    renderInvoiceAuditLogTable();
+    
+    closeModal('editInvoiceModal');
+    
+    alert('تم تحديث بيانات الفاتورة بنجاح');
+}
+
+// وظيفة تحليل بيانات CSV
+function parseCSVData(csvText) {
+    // تقسيم النص إلى سطور
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) return [];
+    
+    // استخراج أسماء الأعمدة من السطر الأول
+    const headers = lines[0].split(',').map(header => header.trim());
+    
+    // معالجة باقي السطور
+    const result = [];
+    for (let i = 1; i < lines.length; i++) {
+        // تخطي السطور الفارغة
+        if (!lines[i].trim()) continue;
+        
+        // تقسيم السطر إلى قيم
+        const values = lines[i].split(',');
+        
+        // إنشاء كائن بالقيم
+        const rowData = {};
+        headers.forEach((header, index) => {
+            rowData[header] = index < values.length ? values[index].trim() : '';
+        });
+        
+        result.push(rowData);
+    }
+    
+    return result;
+}
+
+// وظيفة تحديث جدول العملاء
+function updateClientsTable() {
+    const table = document.getElementById('clientsTable');
+    if (!table) return;
+    
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    clients.forEach((client, index) => {
+        const row = document.createElement('tr');
+        
+        // تنسيق الوقت
+        const date = new Date(client.addedTime);
+        const formattedDate = date.toISOString().replace('T', ' ').substring(0, 19);
+        
+        row.innerHTML = `
+            <td>${client.name}</td>
+            <td>${formattedDate}</td>
+            <td>
+                <button class="btn btn-sm" onclick="editClient(${index})">
+                    <i class='bx bx-edit'></i> تعديل
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteClient(${index})">
+                    <i class='bx bx-trash'></i> حذف
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// وظيفة حذف عميل
+function deleteClient(index) {
+    if (!confirm('هل أنت متأكد من حذف هذا العميل؟')) return;
+    
+    // حفظ الحالة قبل التغيير
+    saveState();
+    
+    const clientName = clients[index].name;
+    
+    // حذف العميل
+    clients.splice(index, 1);
+    
+    // تحديث جدول العملاء
+    updateClientsTable();
+    
+    // تحديث القوائم المنسدلة
+    populateDatalists();
+    
+    alert(`تم حذف العميل "${clientName}" بنجاح`);
+}
+
+// وظائف ترتيب العملاء
+function sortClientsAsc() {
+    // حفظ الحالة قبل التغيير
+    saveState();
+    
+    // ترتيب العملاء من الأقدم للأحدث (تصاعديًا حسب وقت الإضافة)
+    clients.sort((a, b) => a.addedTime - b.addedTime);
+    
+    // تحديث جدول العملاء
+    updateClientsTable();
+    
+    alert("تم ترتيب العملاء من الأقدم للأحدث");
+}
+
+function sortClientsDesc() {
+    // حفظ الحالة قبل التغيير
+    saveState();
+    
+    // ترتيب العملاء من الأحدث للأقدم (تنازليًا حسب وقت الإضافة)
+    clients.sort((a, b) => b.addedTime - a.addedTime);
+    
+    // تحديث جدول العملاء
+    updateClientsTable();
+    
+    alert("تم ترتيب العملاء من الأحدث للأقدم");
+}
+
+// وظيفة تراجع عن التغييرات
+function undoChange() {
+    if (stateHistory.length === 0) {
+        alert("لا توجد تغييرات للتراجع عنها");
+        return;
+    }
+    
+    const previousState = stateHistory.pop();
+    
+    // استعادة البيانات
+    balance = previousState.balance;
+    voices = previousState.voices;
+    clients = previousState.clients;
+    reservations = previousState.reservations;
+    invoices = previousState.invoices;
+    
+    // تحديث العرض
+    updateAllStatistics();
+    updateClientsTable();
+    renderReservationsTable();
+    renderInvoicesTable();
+    renderInvoiceAuditLogTable();
+    populateDatalists();
+    populateInvoiceDatalist();
+    
+    // تحديث التقارير بعد التراجع - إضافة هذا السطر لضمان تحديث التقارير
+    renderReports();
+    
+    alert("تم التراجع عن آخر تغيير");
+}
+
+// حفظ حالة النظام الحالية للتراجع
+function saveState() {
+    const currentState = {
+        balance: balance,
+        voices: JSON.parse(JSON.stringify(voices)),
+        clients: JSON.parse(JSON.stringify(clients)),
+        reservations: JSON.parse(JSON.stringify(reservations)),
+        invoices: JSON.parse(JSON.stringify(invoices))
+    };
+    
+    stateHistory.push(currentState);
+    
+    // الاحتفاظ فقط بآخر 10 حالات
+    if (stateHistory.length > 10) {
+        stateHistory.shift();
+    }
+    
+    // تعيين متغير وجود تغييرات غير محفوظة
+    hasUnsavedChanges = true;
+}
+
+// تحديث إحصائيات النظام
+function updateAllStatistics() {
+    // حساب إجمالي الإيرادات
+    const totalRevenue = reservations.reduce((sum, res) => sum + res.workPrice, 0);
+    document.getElementById("totalRevenue").textContent = totalRevenue.toLocaleString();
+    
+    // حساب إجمالي مستحقات المعلقين
+    const totalActorFee = reservations.reduce((sum, res) => {
+        return sum + res.voiceActors.reduce((actorSum, actor) => actorSum + actor.fee, 0);
+    }, 0);
+    document.getElementById("totalActorFee").textContent = totalActorFee.toLocaleString();
+    
+    // حساب صافي الربح (الإيرادات - المستحقات فقط، بدون طرح المصاريف الشهرية)
+    const netProfit = totalRevenue - totalActorFee;
+    document.getElementById("netProfit").textContent = netProfit.toLocaleString();
+    
+    // تحديث الأموال المتاحة
+    const available = balance > minBalance ? (balance - minBalance) : 0;
+    document.getElementById("availableFunds").textContent = available.toLocaleString();
+    document.getElementById("balanceSpan").textContent = balance.toLocaleString();
+    
+    // التحذير إذا كان الرصيد غير كافٍ
+    const balanceWarning = document.getElementById("balanceWarning");
+    if (available < totalActorFee + monthlyExpense) {
+        balanceWarning.classList.remove("hidden");
+    } else {
+        balanceWarning.classList.add("hidden");
+    }
+
+    // البحث عن فواتير غير مرتبطة
+    const unlinkedInvoices = getUnlinkedInvoices();
+    const unlinkedReservations = getUnlinkedReservations();
+    
+    // تحديث العداد في واجهة المستخدم إذا كان موجوداً
+    const unlinkedCounter = document.getElementById("unlinkedCounter");
+    if (unlinkedCounter) {
+        unlinkedCounter.textContent = unlinkedReservations.length;
+        if (unlinkedReservations.length > 0) {
+            unlinkedCounter.classList.add("warning-count");
+        } else {
+            unlinkedCounter.classList.remove("warning-count");
+        }
+    }
+
+    // Sync with chart data
+    dashboardData.reservations = JSON.parse(JSON.stringify(reservations));
+    updateDashboardData('reservations', dashboardData.reservations);
+    
+    dashboardData.invoices = JSON.parse(JSON.stringify(invoices));
+    updateDashboardData('invoices', dashboardData.invoices);
+    
+    // Use totalRevenue or any logic you prefer for the revenue
+    dashboardData.revenue = totalRevenue;
+    // Example: monthlyExpense + totalActorFee
+    dashboardData.expenses = monthlyExpense + totalActorFee;
+    updateDashboardData('revenue-expense', {
+        revenue: dashboardData.revenue,
+        expenses: dashboardData.expenses
+    });
+}
+
+// وظيفة للحصول على الفواتير غير المرتبطة بحجوزات
+function getUnlinkedInvoices() {
+    return invoices.filter(invoice => {
+        // البحث عن حجز مرتبط بهذه الفاتورة
+        const linkedReservation = reservations.find(res => res.invoiceNumber === invoice.invoiceNumber);
+        return !linkedReservation;
+    });
+}
+
+// وظيفة للحصول على الحجوزات غير المرتبطة بفواتير
+function getUnlinkedReservations() {
+    return reservations.filter(reservation => {
+        // إذا لم يكن هناك رقم فاتورة، فالحجز غير مرتبط
+        if (!reservation.invoiceNumber) return true;
+        
+        // إذا كان هناك رقم فاتورة، تحقق من وجود الفاتورة
+        const linkedInvoice = invoices.find(inv => inv.invoiceNumber === reservation.invoiceNumber);
+        return !linkedInvoice;
+    });
+}
+
+// وظيفة لمطابقة الحجوزات بالفواتير تلقائياً
+function autoMatchReservationsWithInvoices() {
+    let matchCount = 0;
+    
+    // البحث عن الحجوزات التي ليس لها رقم فاتورة
+    const reservationsWithoutInvoice = reservations.filter(res => !res.invoiceNumber);
+    
+    // البحث عن فواتير لكل حجز
+    reservationsWithoutInvoice.forEach(reservation => {
+        // بحث عن فاتورة تطابق اسم العميل والمبلغ والتاريخ (مع هامش للتاريخ)
+        const matchingInvoice = findMatchingInvoice(reservation);
+        
+        if (matchingInvoice) {
+            // تحديث الحجز برقم الفاتورة
+            reservation.invoiceNumber = matchingInvoice.invoiceNumber;
+            reservation.invoicePaid = matchingInvoice.isPaid;
+            if (matchingInvoice.isPaid) {
+                reservation.paidDate = matchingInvoice.paymentDate || '';
+            }
+            
+            matchCount++;
+            
+            // إضافة سجل في سجل العمليات
+            invoiceAuditLog.push({
+                operation: "Auto-Link",
+                invoiceNumber: matchingInvoice.invoiceNumber,
+                date: new Date().toLocaleString()
+            });
+        }
+    });
+    
+    // تحديث الجداول والإحصائيات
+    if (matchCount > 0) {
+        renderReservationsTable();
+        renderInvoiceAuditLogTable();
+        updateAllStatistics();
+    }
+    
+    return matchCount;
+}
+
+// وظيفة للبحث عن فاتورة تطابق حجز معين
+function findMatchingInvoice(reservation) {
+    // استخراج معلومات الحجز
+    const clientName = reservation.client;
+    const reservationDate = new Date(reservation.recordTime.split('T')[0]);
+    const reservationAmount = reservation.workPrice;
+    
+    // البحث عن فاتورة مطابقة
+    return invoices.find(invoice => {
+        // تطابق العميل
+        const clientMatch = invoice.customer.toLowerCase() === clientName.toLowerCase();
+        if (!clientMatch) return false;
+        
+        // تطابق المبلغ (يسمح بهامش بسيط)
+        const amountMatch = Math.abs(invoice.invoiceAmount - reservationAmount) < 0.01;
+        if (!amountMatch) return false;
+        
+        // تطابق التاريخ (مع هامش يومين)
+        if (invoice.date) {
+            const invoiceDate = new Date(invoice.date);
+            const daysDifference = Math.abs((invoiceDate - reservationDate) / (1000 * 60 * 60 * 24));
+            return daysDifference <= 2; // هامش يومين
+        }
+        
+        return false;
+    });
+}
+
+// وظيفة لإظهار مودال لربط الحجوزات بالفواتير يدوياً
+function showLinkReservationsModal() {
+    // التحقق من وجود المودال وإنشاؤه إذا لم يكن موجوداً
+    if (!document.getElementById('linkReservationsModal')) {
+        createLinkReservationsModal();
+    }
+    
+    // الحصول على الحجوزات غير المرتبطة
+    const unlinkedReservations = getUnlinkedReservations();
+    
+    // تحديث قائمة الحجوزات في المودال
+    const reservationsList = document.getElementById('unlinkedReservationsList');
+    reservationsList.innerHTML = '';
+    
+    if (unlinkedReservations.length === 0) {
+        reservationsList.innerHTML = '<div style="text-align:center;padding:15px;">لا توجد حجوزات غير مرتبطة بفواتير</div>';
+    } else {
+        unlinkedReservations.forEach(res => {
+            const listItem = document.createElement('div');
+            listItem.className = 'reservation-item';
+            
+            // صياغة التاريخ بشكل أفضل
+            const formattedDate = res.recordTime.replace('T', ' الساعة ');
+            
+            listItem.innerHTML = `
+                <div class="reservation-details">
+                    <h4>${res.id}: ${res.client}</h4>
+                    <p>التاريخ: ${formattedDate}</p>
+                    <p>السعر: ${res.workPrice} ريال</p>
+                </div>
+                <div class="reservation-actions">
+                    <input type="text" list="invoiceList" class="input" placeholder="رقم الفاتورة" style="max-width:150px;margin:0 8px 0 0;">
+                    <button class="btn btn-sm" onclick="linkReservationToInvoice('${res.id}', this.previousElementSibling.value)">
+                        ربط
+                    </button>
+                </div>
+            `;
+            
+            reservationsList.appendChild(listItem);
+        });
+    }
+    
+    // عرض المودال
+    document.getElementById('linkReservationsModal').classList.add('active');
+}
+
+// إنشاء مودال ربط الحجوزات بالفواتير
+function createLinkReservationsModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'linkReservationsModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="width:600px;">
+            <button class="modal-close" onclick="closeModal('linkReservationsModal')">×</button>
+            <h3>ربط الحجوزات بالفواتير</h3>
+            <div style="margin-bottom:15px;">
+                <button class="btn" onclick="autoLinkReservations()">
+                    <i class='bx bx-link'></i> ربط تلقائي
+                </button>
+                <span id="autoLinkResult" style="margin-right:10px;"></span>
+            </div>
+            <div style="background:var(--primary-light);padding:15px;border-radius:8px;margin-bottom:15px;">
+                <h4 style="margin-top:0;">حجوزات غير مرتبطة بفواتير</h4>
+                <div id="unlinkedReservationsList" style="max-height:350px;overflow-y:auto;">
+                    <!-- ستتم تعبئة هذا القسم عبر JavaScript -->
+                </div>
+            </div>
+            <p style="margin-top:15px;font-size:13px;color:var(--text-light);">
+                <i class='bx bx-info-circle'></i> 
+                يمكنك ربط الحجوزات بالفواتير بشكل تلقائي أو يدوي. عند ربط حجز بفاتورة، سيتم تحديث حالة الحجز تلقائياً بناءً على حالة الفاتورة.
+            </p>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// وظيفة لربط حجز بفاتورة يدوياً
+function linkReservationToInvoice(reservationId, invoiceNumber) {
+    if (!invoiceNumber.trim()) {
+        alert("يرجى إدخال رقم فاتورة صالح");
+        return;
+    }
+    
+    // البحث عن الحجز والفاتورة
+    const reservation = reservations.find(res => res.id === reservationId);
+    const invoice = invoices.find(inv => inv.invoiceNumber === invoiceNumber);
+    
+    if (!reservation) {
+        alert("لم يتم العثور على الحجز");
+        return;
+    }
+    
+    if (!invoice) {
+        if (!confirm("لم يتم العثور على الفاتورة في النظام. هل تريد الاستمرار في الربط على أي حال؟")) {
+            return;
+        }
+    }
+    
+    // حفظ الحالة قبل التغيير
+    saveState();
+    
+    // تحديث الحجز
+    reservation.invoiceNumber = invoiceNumber;
+    
+    if (invoice) {
+        reservation.invoicePaid = invoice.isPaid;
+        if (invoice.isPaid) {
+            reservation.paidDate = invoice.paymentDate || '';
+        }
+    }
+    
+    // إضافة سجل في سجل العمليات
+    invoiceAuditLog.push({
+        operation: "Manual-Link",
+        invoiceNumber: invoiceNumber,
+        date: new Date().toLocaleString()
+    });
+    
+    // تحديث الجداول
+    renderReservationsTable();
+    renderInvoiceAuditLogTable();
+    
+    // إعادة تحميل مودال الربط لإظهار التغييرات
+    showLinkReservationsModal();
+    
+    alert("تم ربط الحجز بالفاتورة بنجاح");
+}
+
+// وظيفة للربط التلقائي بين الحجوزات والفواتير
+function autoLinkReservations() {
+    const matchCount = autoMatchReservationsWithInvoices();
+    
+    const resultSpan = document.getElementById('autoLinkResult');
+    if (resultSpan) {
+        resultSpan.textContent = `تم ربط ${matchCount} حجز بشكل تلقائي`;
+        resultSpan.style.color = matchCount > 0 ? "var(--success-color)" : "var(--text-light)";
+    }
+    
+    // تحديث قائمة الحجوزات في المودال
+    showLinkReservationsModal();
+}
+
+// توسيع وظيفة استيراد الفواتير لتقوم بمحاولة الربط التلقائي بعد الاستيراد
+function importInvoices(fileInput) {
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert("يرجى اختيار ملف للاستيراد");
+        return;
+    }
+    
+    // التحقق من نوع الملف
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls') && !file.name.endsWith('.csv')) {
+        alert("يرجى اختيار ملف Excel أو CSV");
+        return;
+    }
+    
+    saveState(); // حفظ الحالة قبل التغيير
+    
+    // قراءة الملف باستخدام SheetJS
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            const data = e.target.result;
+            
+            // استخراج البيانات من الملف
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+            
+            if (jsonData.length === 0) {
+                alert("لم يتم العثور على بيانات في الملف");
+                return;
+            }
+            
+            // طباعة البيانات المستخرجة للتصحيح
+            console.log("بيانات الفواتير المستوردة:", jsonData);
+            
+            const currentDate = new Date().toLocaleString();
+            let importedCount = 0;
+            
+            jsonData.forEach(row => {
+                // نحدد الحقول المتوقعة بالضبط كما في الملف
+                // Invoice #    Date    Customer        Customer Email  Additional Info.        Subtotal        Tax1    Tax2    Invoice Amount  Received Amount Date of Payment Received
+                const invoiceNumber = String(row['Invoice #'] || '').trim();
+                const date = row['Date'] || '';
+                const customer = row['Customer'] || '';
+                const email = row['Customer Email'] || '';
+                const additionalInfo = row['Additional Info.'] || '';
+                const subtotal = isNaN(parseFloat(row['Subtotal'])) ? 0 : parseFloat(row['Subtotal']);
+                const tax1 = isNaN(parseFloat(row['Tax1'])) ? 0 : parseFloat(row['Tax1']);
+                const tax2 = isNaN(parseFloat(row['Tax2'])) ? 0 : parseFloat(row['Tax2']);
+                const invoiceAmount = isNaN(parseFloat(row['Invoice Amount'])) ? 0 : parseFloat(row['Invoice Amount']);
+                const receivedAmount = isNaN(parseFloat(row['Received Amount'])) ? 0 : parseFloat(row['Received Amount']);
+                const paymentDate = row['Date of Payment Received'] || '';
+                
+                // تخطي الصفوف بدون رقم فاتورة
+                if (!invoiceNumber) {
+                    console.log("تم تخطي صف بدون رقم فاتورة:", row);
+                    return;
+                }
+                
+                // التحقق مما إذا كانت الفاتورة موجودة بالفعل
+                const existingInvoiceIndex = invoices.findIndex(inv => inv.invoiceNumber === invoiceNumber);
+                
+                // معلومات الفاتورة من الملف المستورد
+                const newInvoice = {
+                    invoiceNumber: invoiceNumber,
+                    date: formatExcelDate(date),
+                    customer: customer || 'غير محدد',
+                    email: email,
+                    additionalInfo: additionalInfo,
+                    subtotal: subtotal,
+                    tax1: tax1,
+                    tax2: tax2,
+                    invoiceAmount: invoiceAmount || (subtotal + tax1 + tax2),
+                    receivedAmount: receivedAmount,
+                    paymentDate: formatExcelDate(paymentDate),
+                    isPaid: receivedAmount > 0
+                };
+                
+                console.log("تمت معالجة الفاتورة:", newInvoice);
+                
+                if (existingInvoiceIndex !== -1) {
+                    // تحديث الفاتورة الموجودة
+                    invoices[existingInvoiceIndex] = newInvoice;
+                } else {
+                    // إضافة فاتورة جديدة
+                    invoices.push(newInvoice);
+                }
+                
+                // تسجيل العملية في سجل الفواتير
+                invoiceAuditLog.push({
+                    operation: "Import",
+                    invoiceNumber: invoiceNumber,
+                    date: currentDate
+                });
+                
+                // تحديث حالة الفاتورة في الحجوزات المرتبطة
+                updateReservationsWithInvoice(newInvoice);
+                
+                importedCount++;
+            });
+            
+            // تحديث جدول الفواتير
+            renderInvoicesTable();
+            
+            // تحديث جدول سجل الفواتير
+            renderInvoiceAuditLogTable();
+            
+            // تحديث القوائم المنسدلة للفواتير
+            populateInvoiceDatalist();
+            
+            // محاولة الربط التلقائي للحجوزات بالفواتير الجديدة
+            const matchCount = autoMatchReservationsWithInvoices();
+            
+            // تنبيه المستخدم
+            alert(`تم استيراد ${importedCount} فاتورة بنجاح وربط ${matchCount} حجز تلقائياً`);
+            
+            // إعادة تعيين حقل الملف للسماح بتحديد نفس الملف مرة أخرى
+            fileInput.value = '';
+            
+        } catch (error) {
+            console.error("خطأ في استيراد الفواتير:", error);
+            alert("حدث خطأ أثناء استيراد الفواتير: " + error.message);
+        }
+    };
+    
+    reader.onerror = function() {
+        alert("حدث خطأ أثناء قراءة الملف");
+        fileInput.value = '';
+    };
+    
+    reader.readAsBinaryString(file);
+}
+
+// تحديث وظيفة renderReservationsTable لإضافة تمييز للحجوزات غير المرتبطة بفواتير صحيحة
+function renderReservationsTable() {
+    const reservationsTable = document.querySelector('#reservations table tbody');
+    if (!reservationsTable) return;
+    
+    reservationsTable.innerHTML = '';
+    
+    reservations.forEach((res, index) => {
+        const row = document.createElement('tr');
+        
+        const totalActorFees = res.voiceActors.reduce((sum, actor) => sum + actor.fee, 0);
+        const studioRevenue = res.workPrice - totalActorFees;
+        
+        // التحقق من وجود ربط بالفاتورة
+        const linkedInvoice = invoices.find(inv => inv.invoiceNumber === res.invoiceNumber);
+        const hasValidInvoice = linkedInvoice !== undefined;
+        
+        // إضافة صف ملون إذا لم يكن الحجز مرتبطًا بفاتورة صالحة
+        if (res.invoiceNumber && !hasValidInvoice) {
+            row.classList.add('unlinked');
+        }
+        
+        row.innerHTML = `
+            <td>${res.id}</td>
+            <td>${res.client}</td>
+            <td>${res.recordTime.replace('T', ' ')}</td>
+            <td>${res.workPrice} ريال</td>
+            <td>${totalActorFees} ريال</td>
+            <td>${studioRevenue} ريال</td>
+            <td>${res.invoiceNumber ? 
+                `<span style="color:${hasValidInvoice ? 'inherit' : 'var(--danger-color)'}">${res.invoiceNumber}</span>` : 
+                '<button class="btn btn-sm btn-outline" onclick="showLinkInvoiceOptions(${index})"><i class="bx bx-link"></i> ربط</button>'}</td>
+            <td>${res.invoicePaid ? 'نعم' : 'لا'}</td>
+            <td>
+                <button class="btn btn-sm" onclick="editReservation(${index})">
+                    <i class='bx bx-edit'></i> تعديل
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteReservation(${index})">
+                    <i class='bx bx-trash'></i> حذف
+                </button>
+            </td>
+        `;
+        
+        reservationsTable.appendChild(row);
+    });
+}
+
+// وظيفة إظهار خيارات ربط الفاتورة مباشرة من الجدول
+function showLinkInvoiceOptions(index) {
+    const reservation = reservations[index];
+    if (!reservation) return;
+    
+    // إنشاء مودال صغير للربط
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'quickLinkModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="width:400px;">
+            <button class="modal-close" onclick="closeModal('quickLinkModal')">×</button>
+            <h3>ربط الحجز بفاتورة</h3>
+            <p>ربط الحجز <strong>${reservation.id}</strong> للعميل <strong>${reservation.client}</strong></p>
+            <label>اختر أو أدخل رقم الفاتورة</label>
+            <input type="text" list="invoiceList" id="quickLinkInvoiceNumber" class="input" placeholder="رقم الفاتورة">
+            <div style="margin-top:15px;">
+                <button class="btn" onclick="quickLinkReservation(${index})">
+                    <i class='bx bx-link'></i> ربط
+                </button>
+                <button class="btn" onclick="findMatchingInvoiceForReservation(${index})">
+                    <i class='bx bx-search'></i> بحث تلقائي
+                </button>
+            </div>
+            <div id="suggestedInvoices" style="margin-top:15px;"></div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // عرض المودال
+    modal.classList.add('active');
+    
+    // محاولة البحث عن فواتير مقترحة
+    suggestInvoicesForReservation(index);
+}
+
+// وظيفة للبحث عن فواتير مقترحة لحجز معين
+function suggestInvoicesForReservation(index) {
+    const reservation = reservations[index];
+    if (!reservation) return;
+    
+    const suggestedInvoicesDiv = document.getElementById('suggestedInvoices');
+    if (!suggestedInvoicesDiv) return;
+    
+    // البحث عن الفواتير المطابقة للعميل والمبلغ (مع هامش)
+    const suggestions = invoices.filter(invoice => {
+        // تطابق العميل
+        const clientMatch = invoice.customer.toLowerCase().includes(reservation.client.toLowerCase()) || 
+                            reservation.client.toLowerCase().includes(invoice.customer.toLowerCase());
+        
+        // تطابق المبلغ (مع هامش 10%)
+        const priceDifference = Math.abs(invoice.invoiceAmount - reservation.workPrice);
+        const priceMatch = priceDifference < (reservation.workPrice * 0.1);
+        
+        return clientMatch && priceMatch;
+    });
+    
+    if (suggestions.length > 0) {
+        suggestedInvoicesDiv.innerHTML = `
+            <h4 style="margin:0 0 10px 0;">فواتير مقترحة</h4>
+            <div style="max-height:200px;overflow-y:auto;background:var(--primary-light);padding:10px;border-radius:8px;">
+                ${suggestions.map(inv => `
+                    <div style="padding:8px;margin-bottom:5px;background:#fff;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;" 
+                         onclick="selectSuggestedInvoice('${inv.invoiceNumber}')">
+                        <div>
+                            <strong>${inv.invoiceNumber}</strong> - ${inv.customer}
+                        </div>
+                        <div>${inv.invoiceAmount} ريال</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } else {
+        suggestedInvoicesDiv.innerHTML = '<p style="color:var(--text-light);font-size:13px;">لا توجد فواتير مقترحة مطابقة للعميل والمبلغ</p>';
+    }
+}
+
+// وظيفة لاختيار فاتورة مقترحة
+function selectSuggestedInvoice(invoiceNumber) {
+    const input = document.getElementById('quickLinkInvoiceNumber');
+    if (input) {
+        input.value = invoiceNumber;
+    }
+}
+
+// وظيفة للربط السريع بين الحجز والفاتورة
+function quickLinkReservation(index) {
+    const invoiceNumber = document.getElementById('quickLinkInvoiceNumber').value.trim();
+    if (!invoiceNumber) {
+        alert("يرجى إدخال رقم فاتورة صالح");
+        return;
+    }
+    
+    const reservation = reservations[index];
+    if (!reservation) {
+        alert("لم يتم العثور على الحجز");
+        return;
+    }
+    
+    // البحث عن الفاتورة
+    const invoice = invoices.find(inv => inv.invoiceNumber === invoiceNumber);
+    
+    if (!invoice) {
+        if (!confirm("لم يتم العثور على الفاتورة في النظام. هل تريد الاستمرار في الربط على أي حال؟")) {
+            return;
+        }
+    }
+    
+    // حفظ الحالة قبل التغيير
+    saveState();
+    
+    // تحديث الحجز
+    reservation.invoiceNumber = invoiceNumber;
+    
+    if (invoice) {
+        reservation.invoicePaid = invoice.isPaid;
+        if (invoice.isPaid) {
+            reservation.paidDate = invoice.paymentDate || '';
+        }
+    }
+    
+    // إضافة سجل في سجل العمليات
+    invoiceAuditLog.push({
+        operation: "Quick-Link",
+        invoiceNumber: invoiceNumber,
+        date: new Date().toLocaleString()
+    });
+    
+    // تحديث الجداول
+    renderReservationsTable();
+    renderInvoiceAuditLogTable();
+    
+    // إغلاق المودال
+    closeModal('quickLinkModal');
+    
+    alert("تم ربط الحجز بالفاتورة بنجاح");
+}
+
+// وظيفة للبحث التلقائي عن فاتورة مطابقة لحجز معين
+function findMatchingInvoiceForReservation(index) {
+    const reservation = reservations[index];
+    if (!reservation) {
+        alert("لم يتم العثور على الحجز");
+        return;
+    }
+    
+    // البحث عن فاتورة مطابقة
+    const matchingInvoice = findMatchingInvoice(reservation);
+    
+    if (matchingInvoice) {
+        // تعبئة رقم الفاتورة في الحقل
+        const input = document.getElementById('quickLinkInvoiceNumber');
+        if (input) {
+            input.value = matchingInvoice.invoiceNumber;
+        }
+        
+        // إظهار رسالة نجاح
+        alert(`تم العثور على فاتورة مطابقة: ${matchingInvoice.invoiceNumber}`);
+    } else {
+        alert("لم يتم العثور على فاتورة مطابقة");
+    }
+}
+
+// تحديث وظيفة تهيئة عند تحميل الصفحة
+document.addEventListener("DOMContentLoaded", () => {
+    // ...existing code...
+    
+    // إضافة زر لإدارة العلاقة بين الحجوزات والفواتير في قسم الحجوزات
+    const reservationsHeader = document.querySelector("#reservations .card h3");
+    if (reservationsHeader) {
+        const linkButton = document.createElement("button");
+        linkButton.className = "btn btn-sm";
+        linkButton.style = "margin-right: auto; font-size: 13px; padding: 6px 12px;";
+        linkButton.innerHTML = '<i class="bx bx-link"></i> ربط بالفواتير <span id="unlinkedCounter" class="counter">0</span>';
+        linkButton.onclick = showLinkReservationsModal;
+        
+        // إضافة الزر إلى العنوان
+        reservationsHeader.style.display = "flex";
+        reservationsHeader.style.alignItems = "center";
+        reservationsHeader.appendChild(linkButton);
+    }
+    
+    // ...existing code...
+});
+
+// تحميل الصفحة وتهيئة الدوال
+document.addEventListener("DOMContentLoaded", function() {
+    // إنشاء المودالات في بداية تحميل الصفحة
+    if (!document.getElementById('editVoiceModal')) createEditVoiceModal();
+    if (!document.getElementById('editClientModal')) createEditClientModal();
+    if (!document.getElementById('editReservationModal')) createEditReservationModal();
+    
+    // تهيئة البيانات
+    populateDatalists();
+    
+    try {
+        populateInvoiceDatalist();
+    } catch (e) {
+        console.error("خطأ في تحميل قوائم الفواتير:", e);
+    }
+    
+    try {
+        initCharts();
+    } catch (e) {
+        console.error("خطأ في تهيئة المخططات البيانية:", e);
+    }
+    
+    updateAllStatistics();
+    updateClientsTable();
+    
+    // تحديث الجداول
+    try {
+        renderInvoicesTable();
+    } catch (e) {
+        console.error("خطأ في عرض جدول الفواتير:", e);
+    }
+    
+    try {
+        renderInvoiceAuditLogTable();
+    } catch (e) {
+        console.error("خطأ في عرض سجل الفواتير:", e);
+    }
+    
+    try {
+        renderReservationsTable();
+    } catch (e) {
+        console.error("خطأ في عرض جدول الحجوزات:", e);
+    }
+    
+    try {
+        renderReports();
+    } catch (e) {
+        console.error("خطأ في عرض التقارير:", e);
+    }
+    
+    // حفظ الحالة الأولية
+    saveState();
+});
+
+// وظيفة لتطبيق الفلترة على التقارير
+function renderReports() {
+    const clientFilter = document.getElementById('reportClientFilter').value.trim();
+    const fromDate = document.getElementById('reportFromDate').value;
+    const toDate = document.getElementById('reportToDate').value;
+    
+    // تحديث جداول التقارير
+    renderDuePaymentsTable(clientFilter, fromDate, toDate);
+    renderPaidPaymentsTable(clientFilter, fromDate, toDate);
+    
+    // حساب وعرض إحصائيات المستحقات
+    updateDueAmountStatistics(clientFilter, fromDate, toDate);
+}
+
+// وظيفة لعرض جدول المستحقات
+function renderDuePaymentsTable(clientFilter = '', fromDate = '', toDate = '') {
+    const duePaymentsTable = document.getElementById('duePaymentsTable').querySelector('tbody');
+    duePaymentsTable.innerHTML = '';
+    
+    // تاريخ اليوم للمقارنة
+    const today = new Date();
+    
+    // فلترة الحجوزات بناءً على المعايير
+    const filteredReservations = reservations.filter(res => {
+        // فقط الحجوزات التي تحتوي على معلقين غير مدفوعين
+        if (res.actorPaid) return false;
+        
+        // فلترة حسب العميل إذا تم تحديده
+        if (clientFilter && !res.client.includes(clientFilter)) return false;
+        
+        // فلترة حسب التاريخ إذا تم تحديده
+        if (fromDate) {
+            const fromDateObj = new Date(fromDate);
+            const resDateObj = new Date(res.actorDueDate);
+            if (resDateObj < fromDateObj) return false;
+        }
+        
+        if (toDate) {
+            const toDateObj = new Date(toDate);
+            const resDateObj = new Date(res.actorDueDate);
+            if (resDateObj > toDateObj) return false;
+        }
+        
+        return true;
+    });
+    
+    // عرض الحجوزات المفلترة في الجدول
+    filteredReservations.forEach(res => {
+        // حساب الأيام المتبقية للدفع
+        const dueDate = new Date(res.actorDueDate);
+        const timeDiff = dueDate - today;
+        const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+        
+        // إنشاء صف لكل معلق في الحجز
+        res.voiceActors.forEach(actor => {
+            const row = document.createElement('tr');
+            
+            // تحديد لون الصف بناءً على قرب موعد الاستحقاق
+            if (daysRemaining < 0) {
+                row.style.backgroundColor = '#ffeded'; // متأخر
+            } else if (daysRemaining <= 3) {
+                row.style.backgroundColor = '#fff8e1'; // قريب
+            }
+            
+            row.innerHTML = `
+                <td>${res.client}</td>
+                <td>${actor.name}</td>
+                <td>${actor.fee} ريال</td>
+                <td>${res.actorDueDate}</td>
+                <td>${daysRemaining < 0 ? 
+                    `<span style="color:red">متأخر بـ ${Math.abs(daysRemaining)} يوم</span>` : 
+                    daysRemaining + ' يوم'}</td>
+                <td>
+                    <button class="btn btn-sm" onclick="markActorPaid('${res.id}')">
+                        <i class='bx bx-check-circle'></i> تم الدفع
+                    </button>
+                </td>
+            `;
+            
+            duePaymentsTable.appendChild(row);
+        });
+    });
+    
+    // إذا لم يكن هناك مستحقات، عرض رسالة
+    if (duePaymentsTable.children.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="6" style="text-align:center">لا توجد مستحقات للدفع</td>`;
+        duePaymentsTable.appendChild(row);
+    }
+}
+
+// وظيفة لعرض جدول المدفوعات المكتملة
+function renderPaidPaymentsTable(clientFilter = '', fromDate = '', toDate = '') {
+    const paidPaymentsTable = document.getElementById('paidPaymentsTable').querySelector('tbody');
+    paidPaymentsTable.innerHTML = '';
+    
+    // فلترة الحجوزات بناءً على المعايير
+    const filteredReservations = reservations.filter(res => {
+        // فقط الحجوزات المدفوعة للمعلقين
+        if (!res.actorPaid) return false;
+        
+        // فلترة حسب العميل إذا تم تحديده
+        if (clientFilter && !res.client.includes(clientFilter)) return false;
+        
+        // فلترة حسب تاريخ الدفع إذا تم تحديده
+        if (fromDate || toDate) {
+            if (!res.paidDate) return false;
+            
+            const paidDateObj = new Date(res.paidDate);
+            
+            if (fromDate) {
+                const fromDateObj = new Date(fromDate);
+                if (paidDateObj < fromDateObj) return false;
+            }
+            
+            if (toDate) {
+                const toDateObj = new Date(toDate);
+                if (paidDateObj > toDateObj) return false;
+            }
+        }
+        
+        return true;
+    });
+    
+    // عرض الحجوزات المدفوعة في الجدول
+    filteredReservations.forEach(res => {
+        const row = document.createElement('tr');
+        
+        // جمع أسماء المعلقين المشاركين
+        const actorNames = res.voiceActors.map(actor => actor.name).join('، ');
+        
+        // حساب إجمالي المبالغ المدفوعة للمعلقين
+        const totalActorFees = res.voiceActors.reduce((sum, actor) => sum + actor.fee, 0);
+        
+        row.innerHTML = `
+            <td>${res.client}</td>
+            <td>${actorNames}</td>
+            <td>${totalActorFees} ريال</td>
+            <td>${res.paidDate || '-'}</td>
+        `;
+        
+        paidPaymentsTable.appendChild(row);
+    });
+    
+    // إذا لم يكن هناك مدفوعات، عرض رسالة
+    if (paidPaymentsTable.children.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="4" style="text-align:center">لا توجد مدفوعات مكتملة</td>`;
+        paidPaymentsTable.appendChild(row);
+    }
+}
+
+// وظيفة تحديث إحصائيات المستحقات
+function updateDueAmountStatistics(clientFilter = '', fromDate = '', toDate = '') {
+    let totalDue = 0;
+    let overdueDue = 0;
+    
+    // تاريخ اليوم للمقارنة
+    const today = new Date();
+    
+    // حساب المستحقات
+    reservations.forEach(res => {
+        // تخطي الحجوزات المدفوعة
+        if (res.actorPaid) return;
+        
+        // فلترة حسب العميل إذا تم تحديده
+        if (clientFilter && !res.client.includes(clientFilter)) return;
+        
+        // فلترة حسب التاريخ إذا تم تحديده
+        let includeDue = true;
+        if (fromDate || toDate) {
+            const dueDateObj = new Date(res.actorDueDate);
+            
+            if (fromDate) {
+                const fromDateObj = new Date(fromDate);
+                if (dueDateObj < fromDateObj) includeDue = false;
+            }
+            
+            if (toDate) {
+                const toDateObj = new Date(toDate);
+                if (dueDateObj > toDateObj) includeDue = false;
+            }
+        }
+        
+        if (includeDue) {
+            // حساب إجمالي أجور المعلقين
+            const actorFees = res.voiceActors.reduce((sum, actor) => sum + actor.fee, 0);
+            totalDue += actorFees;
+            
+            // التحقق مما إذا كان الدفع متأخرًا
+            const dueDate = new Date(res.actorDueDate);
+            if (dueDate < today) {
+                overdueDue += actorFees;
+            }
+        }
+    });
+    
+    // عرض الإحصائيات في الواجهة
+    document.getElementById('totalDueAmount').textContent = `${totalDue.toLocaleString()} ريال`;
+    document.getElementById('overdueDueAmount').textContent = `${overdueDue.toLocaleString()} ريال`;
+}
+
+// إضافة وظيفة تحديث قائمة الفواتير المنسدلة
+function populateInvoiceDatalist() {
+    const invoiceList = document.getElementById("invoiceList");
+    if (!invoiceList) return;
+    
+    invoiceList.innerHTML = invoices.map(inv => `<option value="${inv.invoiceNumber}">`).join("");
+}
+
+// إضافة وظيفة عرض سجل الفواتير
+function renderInvoiceAuditLogTable() {
+    const auditLogTable = document.querySelector('#invoices .card:last-child .table-container table tbody');
+    if (!auditLogTable) return;
+    
+    auditLogTable.innerHTML = '';
+    
+    // عرض سجل العمليات بترتيب تنازلي (الأحدث أولاً)
+    const sortedLogs = [...invoiceAuditLog].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    sortedLogs.forEach(log => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${log.operation}</td>
+            <td>${log.invoiceNumber}</td>
+            <td>${log.date}</td>
+        `;
+        auditLogTable.appendChild(row);
+    });
+}
+
+// إصلاح دالة استيراد البيانات (مفقودة)
+function importData(fileInput) {
+    alert("وظيفة استيراد البيانات قيد التطوير");
+    // يمكن إضافة الكود الخاص بهذه الوظيفة لاحقًا
+}
+
+// إصلاح دالة تصدير البيانات (مفقودة)
+function exportData() {
+    // تحضير البيانات للتصدير
+    const dataToExport = {
+        balance: balance,
+        voices: voices,
+        clients: clients,
+        reservations: reservations,
+        invoices: invoices
+    };
+    
+    // تحويل البيانات إلى نص JSON
+    const jsonData = JSON.stringify(dataToExport, null, 2);
+    
+    // إنشاء رابط للتحميل
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    // إنشاء عنصر رابط مؤقت للتحميل
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dashboard_data_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // تنظيف الذاكرة
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 0);
+}
+
+// إضافة دوال استيراد الحجوزات (مفقودة)
+function importReservations(fileInput) {
+    alert("وظيفة استيراد الحجوزات قيد التطوير");
+    // يمكن إضافة الكود الخاص بهذه الوظيفة لاحقًا
+}
+
+// إضافة تعريف لمتغيرات الـDashboard Data العالمية إذا كانت غير موجودة
+const dashboardData = {
+    reservations: [],
+    invoices: [],
+    revenue: 0,
+    expenses: 0
+};
+
+// إضافة دالة تحديث البيانات
+function updateDashboardData(type, data) {
+    dashboardData[type] = data;
+    
+    // تحديث المخططات إذا كانت موجودة
+    if (type === 'reservations' && reservationChart && reservationBarChart) {
+        const reservationsByDate = processReservationsByDate(data);
+        const labels = Object.keys(reservationsByDate).sort();
+        const chartData = labels.map(date => reservationsByDate[date]);
+        
+        reservationChart.data.labels = labels;
+        reservationChart.data.datasets[0].data = chartData;
+        reservationChart.update();
+        
+        const reservationsByClient = processReservationsByClient(data);
+        const clientLabels = Object.keys(reservationsByClient).slice(0, 6);
+        const clientData = clientLabels.map(client => reservationsByClient[client]);
+        
+        reservationBarChart.data.labels = clientLabels;
+        reservationBarChart.data.datasets[0].data = clientData;
+        reservationBarChart.update();
+    } else if (type === 'invoices' && invoiceRevenueChart) {
+        const invoiceRevenue = processInvoiceRevenue(data);
+        const labels = Object.keys(invoiceRevenue).sort();
+        const chartData = labels.map(month => invoiceRevenue[month]);
+        
+        invoiceRevenueChart.data.labels = labels;
+        invoiceRevenueChart.data.datasets[0].data = chartData;
+        invoiceRevenueChart.update();
+    } else if (type === 'revenue-expense' && revenueExpenseChart) {
+        // تحديث مخطط الإيرادات والمصروفات
+        const labels = revenueExpenseChart.data.labels;
+        const revenueData = Array(labels.length).fill(data.revenue / labels.length);
+        const expenseData = Array(labels.length).fill(data.expenses / labels.length);
+        
+        revenueExpenseChart.data.datasets[0].data = revenueData;
+        revenueExpenseChart.data.datasets[1].data = expenseData;
+        revenueExpenseChart.update();
+    }
+}
+
+// تحميل الصفحة وتهيئة الدوال
+document.addEventListener("DOMContentLoaded", function() {
+    // إنشاء المودالات في بداية تحميل الصفحة
+    if (!document.getElementById('editVoiceModal')) createEditVoiceModal();
+    if (!document.getElementById('editClientModal')) createEditClientModal();
+    if (!document.getElementById('editReservationModal')) createEditReservationModal();
+    
+    // تهيئة البيانات
+    populateDatalists();
+    
+    try {
+        populateInvoiceDatalist();
+    } catch (e) {
+        console.error("خطأ في تحميل قوائم الفواتير:", e);
+    }
+    
+    try {
+        initCharts();
+    } catch (e) {
+        console.error("خطأ في تهيئة المخططات البيانية:", e);
+    }
+    
+    updateAllStatistics();
+    updateClientsTable();
+    
+    // تحديث الجداول
+    try {
+        renderInvoicesTable();
+    } catch (e) {
+        console.error("خطأ في عرض جدول الفواتير:", e);
+    }
+    
+    try {
+        renderInvoiceAuditLogTable();
+    } catch (e) {
+        console.error("خطأ في عرض سجل الفواتير:", e);
+    }
+    
+    try {
+        renderReservationsTable();
+    } catch (e) {
+        console.error("خطأ في عرض جدول الحجوزات:", e);
+    }
+    
+    try {
+        renderReports();
+    } catch (e) {
+        console.error("خطأ في عرض التقارير:", e);
+    }
+    
+    // حفظ الحالة الأولية
+    saveState();
+});
+
+// وظيفة لتطبيق الفلترة على التقارير
+function renderReports() {
+    const clientFilter = document.getElementById('reportClientFilter').value.trim();
+    const fromDate = document.getElementById('reportFromDate').value;
+    const toDate = document.getElementById('reportToDate').value;
+    
+    // تحديث جداول التقارير
+    renderDuePaymentsTable(clientFilter, fromDate, toDate);
+    renderPaidPaymentsTable(clientFilter, fromDate, toDate);
+    
+    // حساب وعرض إحصائيات المستحقات
+    updateDueAmountStatistics(clientFilter, fromDate, toDate);
+}
+
+// وظيفة تبديل نوع الرسم البياني
+function toggleChartType(chartId, newType) {
+    let chartReference;
+    
+    // تحديد الرسم البياني المستهدف
+    switch (chartId) {
+        case 'reservationChart':
+            chartReference = reservationChart;
+            break;
+        case 'reservationBarChart':
+            chartReference = reservationBarChart;
+            break;
+        case 'revenueExpenseChart':
+            chartReference = revenueExpenseChart;
+            break;
+        case 'invoiceRevenueChart':
+            chartReference = invoiceRevenueChart;
+            break;
+        default:
+            return;
+    }
+    
+    if (!chartReference) return;
+    
+    // حفظ البيانات الحالية
+    const currentData = chartReference.data;
+    
+    // تعيين النوع الجديد والتكوين المناسب
+    switch (newType) {
+        case 'line':
+            chartReference.config.type = 'line';
+            chartReference.data.datasets.forEach(dataset => {
+                dataset.tension = 0.3;
+                dataset.fill = true;
+                dataset.borderWidth = 2;
+                dataset.pointRadius = 4;
+                dataset.pointHoverRadius = 6;
+            });
+            break;
+        case 'bar':
+            chartReference.config.type = 'bar';
+            chartReference.data.datasets.forEach(dataset => {
+                dataset.tension = 0;
+                dataset.fill = false;
+                dataset.borderWidth = 1;
+            });
+            break;
+        case 'area':
+            chartReference.config.type = 'line';
+            chartReference.data.datasets.forEach(dataset => {
+                dataset.tension = 0.4;
+                dataset.fill = true;
+                dataset.borderWidth = 1;
+                dataset.pointRadius = 0;
+            });
+            break;
+        case 'pie':
+            // تحويل إلى رسم دائري
+            chartReference.config.type = 'pie';
+            chartReference.data.datasets.forEach(dataset => {
+                dataset.backgroundColor = [
+                    '#12846e', '#2ecc71', '#3498db', 
+                    '#9b59b6', '#f1c40f', '#e67e22',
+                    '#e74c3c', '#1abc9c', '#34495e'
+                ];
+                dataset.borderWidth = 1;
+                dataset.borderColor = '#fff';
+                dataset.hoverOffset = 10;
+            });
+            break;
+        case 'doughnut':
+            // تحويل إلى رسم حلقي
+            chartReference.config.type = 'doughnut';
+            chartReference.data.datasets.forEach(dataset => {
+                dataset.backgroundColor = [
+                    '#12846e', '#2ecc71', '#3498db', 
+                    '#9b59b6', '#f1c40f', '#e67e22',
+                    '#e74c3c', '#1abc9c', '#34495e'
+                ];
+                dataset.borderWidth = 1;
+                dataset.borderColor = '#fff';
+                dataset.hoverOffset = 10;
+            });
+            break;
+        default:
+            return;
+    }
+    
+    // تحديث الرسم البياني مع الحفاظ على البيانات الحالية
+    chartReference.update();
+    
+    // تنشيط الزر المختار
+    const parent = document.querySelector(`#${chartId}`).closest('.chart-area');
+    const buttons = parent.querySelectorAll('.chart-controls button');
+    buttons.forEach(button => {
+        if (button.textContent.includes(getChartTypeName(newType))) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
+}
+
+// Helper function to get chart type name in Arabic
+function getChartTypeName(type) {
+    switch (type) {
+        case 'line': return 'خطي';
+        case 'bar': return 'عمودي';
+        case 'area': return 'مساحي';
+        case 'pie': return 'دائري';
+        case 'doughnut': return 'حلقي';
+        default: return '';
+    }
+}
+
+// وظيفة فتح مودال الحجز الجديد عند النقر على زر حجز جديد
+function openNewReservationModal() {
+    // عرض المودال
+    document.getElementById('newReservationModal').classList.add('active');
+    
+    // تحضير المودال بقيم افتراضية
+    document.getElementById('newResClient').value = '';
+    document.getElementById('newResTime').value = '';
+    document.getElementById('newResWorkPrice').value = '';
+    document.getElementById('newResInvoiceNumber').value = '';
+    document.getElementById('newResDueDate').value = '';
+    document.getElementById('newResPaid').checked = false;
+    document.getElementById('newResNotes').value = '';
+    
+    // مسح قائمة المعلقين
+    const actorsList = document.querySelector('#newReservationModal .modal-content div[style*="background:var(--primary-light)"]');
+    actorsList.innerHTML = '';
+    
+    // مسح حقول إضافة معلق
+    document.getElementById('tempActorName').value = '';
+    document.getElementById('tempActorFee').value = '';
+}
+
+// وظيفة لإضافة حجز جديد
+function addNewReservation() {
+    const client = document.getElementById('newResClient').value.trim();
+    const recordTime = document.getElementById('newResTime').value;
+    const workPrice = parseFloat(document.getElementById('newResWorkPrice').value) || 0;
+    const invoiceNumber = document.getElementById('newResInvoiceNumber').value.trim();
+    const dueDate = document.getElementById('newResDueDate').value;
+    const isPaid = document.getElementById('newResPaid').checked;
+    const notes = document.getElementById('newResNotes').value.trim();
+    
+    if (!client || !recordTime || !workPrice) {
+        alert("يرجى تعبئة الحقول المطلوبة: العميل، التاريخ والوقت، وسعر العمل");
+        return;
+    }
+    
+    // حفظ الحالة قبل التغيير
+    saveState();
+    
+    // استخراج المعلقين وأجورهم من المودال
+    const actorsList = document.querySelector('#newReservationModal .modal-content div[style*="background:var(--primary-light)"]');
+    const voiceActors = [];
+    
+    Array.from(actorsList.children).forEach(actorElement => {
+        const actorText = actorElement.querySelector('div').textContent;
+        const nameMatch = actorText.match(/<strong>(.*?)<\/strong>/);
+        const feeMatch = actorText.match(/(\d+) ريال/);
+        
+        if (!nameMatch || !feeMatch) {
+            // إذا لم يتم استخراج الاسم أو الرسوم بشكل صحيح، استخراجها بطريقة أخرى
+            const parts = actorText.split(' - ');
+            const name = parts[0].replace(/<strong>|<\/strong>/g, '');
+            const fee = parseInt(parts[1]) || 0;
+            voiceActors.push({ name: name, fee: fee });
+        } else {
+            const name = nameMatch[1];
+            const fee = parseInt(feeMatch[1]) || 0;
+            voiceActors.push({ name: name, fee: fee });
+        }
+    });
+    
+    // إنشاء معرف فريد للحجز
+    const newId = "#RES-" + (reservations.length + 1).toString().padStart(3, '0');
+    
+    // إضافة الحجز
+    reservations.push({
+        id: newId,
+        client: client,
+        recordTime: recordTime,
+        workPrice: workPrice,
+        voiceActors: voiceActors,
+        invoiceNumber: invoiceNumber,
+        actorDueDate: dueDate,
+        actorPaid: isPaid,
+        notes: notes,
+        paidDate: isPaid ? new Date().toISOString().split('T')[0] : "",
+        invoicePaid: false // يمكن تعديله لاحقًا إذا كان مرتبطا بفاتورة مدفوعة
+    });
+    
+    // إذا كان مرتبطًا بفاتورة، تحديث حالة الدفع
+    if (invoiceNumber) {
+        const linkedInvoice = invoices.find(inv => inv.invoiceNumber === invoiceNumber);
+        if (linkedInvoice) {
+            reservations[reservations.length - 1].invoicePaid = linkedInvoice.isPaid;
+        }
+    }
+    
+    // تحديث الجدول
+    renderReservationsTable();
+    
+    // تحديث الإحصائيات
+    updateAllStatistics();
+    
+    // تحديث التقارير والمستحقات - إضافة هذا السطر لحل المشكلة
+    renderReports();
+    
+    // إغلاق المودال
+    closeModal('newReservationModal');
+    
+    alert("تم إضافة الحجز بنجاح");
+}
+
+// وظيفة تسجيل دفع مستحقات المعلق
+function markActorPaid(reservationId) {
+    // البحث عن الحجز بالمعرف
+    const reservationIndex = reservations.findIndex(res => res.id === reservationId);
+    if (reservationIndex === -1) {
+        alert("لم يتم العثور على الحجز!");
+        return;
+    }
+    
+    // تأكيد العملية
+    if (!confirm('هل تريد تأكيد دفع مستحقات المعلقين لهذا الحجز؟')) {
+        return;
+    }
+    
+    // حفظ الحالة قبل التغيير
+    saveState();
+    
+    // تعديل حالة الدفع
+    reservations[reservationIndex].actorPaid = true;
+    reservations[reservationIndex].paidDate = new Date().toISOString().split('T')[0];
+    
+    // تحديث التقارير
+    renderReports();
+    
+    // تحديث الإحصائيات
+    updateAllStatistics();
+    
+    alert("تم تسجيل الدفع بنجاح");
+}
+
+// وظيفة تشغيل استيراد الحجوزات عبر زر
+function triggerReservationsImport() {
+    document.getElementById("reservationsImportFile").click();
+}
+
+// وظيفة تعليم الفاتورة كمدفوعة
+function markInvoiceAsPaid(index) {
+    const invoice = invoices[index];
+    if (!invoice) return;
+    
+    if (invoice.isPaid) {
+        alert("هذه الفاتورة مدفوعة بالفعل");
+        return;
+    }
+    
+    // تأكيد العملية
+    if (!confirm('هل تريد تعليم هذه الفاتورة كمدفوعة؟')) {
+        return;
+    }
+    
+    // حفظ الحالة قبل التغيير
+    saveState();
+    
+    // تعديل حالة الدفع
+    invoice.isPaid = true;
+    invoice.paymentDate = new Date().toISOString().split('T')[0]; // تاريخ اليوم
+    invoice.receivedAmount = invoice.invoiceAmount; // افتراض أن المبلغ المستلم يساوي المبلغ الإجمالي
+    
+    // تحديث الحجوزات المرتبطة بالفاتورة
+    reservations.forEach(reservation => {
+        if (reservation.invoiceNumber === invoice.invoiceNumber) {
+            reservation.invoicePaid = true;
+            reservation.paidDate = invoice.paymentDate;
+        }
+    });
+    
+    // إضافة سجل العملية
+    invoiceAuditLog.push({
+        operation: "Mark Paid",
+        invoiceNumber: invoice.invoiceNumber,
+        date: new Date().toLocaleString()
+    });
+    
+    // تحديث العرض
+    renderInvoicesTable();
+    renderInvoiceAuditLogTable();
+    renderReservationsTable();
+    
+    // تحديث الإحصائيات
+    updateAllStatistics();
+    
+    alert("تم تعليم الفاتورة كمدفوعة بنجاح");
+}
+
+// متغيرات جديدة للحفظ التلقائي
+let hasUnsavedChanges = false;
+let autoSaveInterval = null;
+let lastSaveTime = null;
+let autoSaveDelay = 30000; // حفظ كل 30 ثانية
+let isAutoSaving = false;
+
+// إزالة الحفظ التلقائي المحلي واستبداله بالنسخ الاحتياطي السحابي التلقائي
+function setupAutoSave() {
+    // إذا كان النسخ الاحتياطي التلقائي مفعلًا في التخزين المحلي
+    const autoBackupEnabled = localStorage.getItem('autoBackupEnabled') === 'true';
+    
+    if (autoBackupEnabled && typeof setupAutoBackup === 'function') {
+        // محاولة تشغيل الحفظ التلقائي السحابي إذا كان مسجل الدخول
+        const savedToken = localStorage.getItem('gDriveToken');
+        if (savedToken) {
+            setupAutoBackup();
+        }
+    }
+    
+    // إضافة حدث استماع للنافذة عند مغادرة الصفحة للتحذير
+    window.addEventListener('beforeunload', function(e) {
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = 'لديك تغييرات غير محفوظة. هل أنت متأكد من مغادرة الصفحة؟';
+            return e.returnValue;
+        }
+    });
+}
+
+// تعديل وظيفة الحفظ التلقائي لتستخدم النسخ السحابي
+function autoSave() {
+    if (!hasUnsavedChanges) return;
+    
+    // حفظ سحابي تلقائي فقط إذا كان المستخدم مسجل الدخول
+    const savedToken = localStorage.getItem('gDriveToken');
+    if (savedToken && typeof backupToDrive === 'function') {
+        backupToDrive(false); // false للإشارة إلى أنه حفظ تلقائي وليس يدوي
+        hasUnsavedChanges = false;
+    }
+}
+
+// تعديل وظيفة manualSave لاستخدام الحفظ السحابي
+function manualSave() {
+    // استدعاء وظيفة حفظ النسخة الاحتياطية مع المعلمة true للإشارة إلى أنها عملية يدوية
+    if (typeof backupToDrive === 'function') {
+        backupToDrive(true);
+    } else {
+        console.error('وظيفة backupToDrive غير متاحة. قد يكون هناك خطأ في تحميل ملف cloud-backup.js');
+        
+        // محاولة تحميل ملف cloud-backup.js ثم تنفيذ الحفظ
+        const script = document.createElement('script');
+        script.src = 'cloud-backup.js';
+        script.onload = function() {
+            if (typeof backupToDrive === 'function') {
+                backupToDrive(true);
+            } else {
+                alert('تعذر الوصول إلى خدمة التخزين السحابي. يرجى التأكد من الاتصال بالإنترنت وتحديث الصفحة.');
+            }
+        };
+        script.onerror = function() {
+            alert('فشل في تحميل خدمة التخزين السحابي. يرجى التأكد من الاتصال بالإنترنت وتحديث الصفحة.');
+        };
+        document.head.appendChild(script);
+    }
+}
+
+// تعديل وظيفة openBackups لفتح إعدادات الحفظ السحابي مباشرة دون وسيط
+function openBackups() {
+    openCloudSettings();
+}
+
+// وظيفة مساعدة لفتح إعدادات التخزين السحابي إذا لم تكن موجودة في ملف cloud-backup.js
+function openCloudSettings() {
+    const modal = document.getElementById('cloudSettingsModal');
+    if (modal) {
+        modal.classList.add('active');
+        
+        // تحديث حالة الاتصال بـ Google Drive إذا كانت الوظيفة متوفرة
+        if (typeof googleDriveAuth !== 'undefined' && typeof googleDriveAuth.checkAuthStatus === 'function') {
+            googleDriveAuth.checkAuthStatus();
+        }
+    } else {
+        console.error("لم يتم العثور على مودال إعدادات التخزين السحابي");
+        alert("تعذر فتح إعدادات التخزين السحابي. يرجى تحديث الصفحة والمحاولة مرة أخرى.");
+    }
+}
+
+// وظيفة استعادة النسخ الاحتياطية من السحابة
+function restoreBackup(backupId) {
+    // هذه الدالة معطلة الآن لأننا نستخدم استعادة النسخ من السحابة
+    alert('تم نقل وظيفة استعادة النسخ الاحتياطية إلى التخزين السحابي');
+    openCloudSettings();
+}
+
+// وظيفة حذف النسخ الاحتياطية من السحابة
+function deleteBackup(backupId) {
+    // هذه الدالة معطلة الآن لأننا نستخدم حذف النسخ من السحابة
+    alert('تم نقل وظيفة حذف النسخ الاحتياطية إلى التخزين السحابي');
+    openCloudSettings();
+}
+
+// إزالة وظيفة saveToLocalStorage واستبدالها بوظيفة مؤقتة
+function saveToLocalStorage() {
+    console.log("تم تعطيل الحفظ المحلي واستبداله بالتخزين السحابي");
+    return false;
+}
+
+// محاولة استرجاع البيانات من التخزين المحلي
+function tryRestoreFromLocalStorage() {
+    try {
+        const savedData = localStorage.getItem('dashboardData');
+        if (!savedData) return false;
+        
+        const parsedData = JSON.parse(savedData);
+        if (!parsedData || !parsedData.savedAt) return false;
+        
+        // التحقق من تاريخ الحفظ (لا تسترجع البيانات إذا كانت قديمة جداً، مثلاً أكثر من 7 أيام)
+        const savedDate = new Date(parsedData.savedAt);
+        const now = new Date();
+        const diffDays = (now - savedDate) / (1000 * 60 * 60 * 24);
+        
+        if (diffDays > 7) {
+            console.log("البيانات المحفوظة قديمة جداً (أكثر من 7 أيام). لم يتم استرجاعها.");
+            return false;
+        }
+        
+        // استرجاع البيانات
+        if (parsedData.balance) balance = parsedData.balance;
+        if (parsedData.voices) voices = parsedData.voices;
+        if (parsedData.clients) clients = parsedData.clients;
+        if (parsedData.reservations) reservations = parsedData.reservations;
+        if (parsedData.invoices) invoices = parsedData.invoices;
+        if (parsedData.invoiceAuditLog) invoiceAuditLog = parsedData.invoiceAuditLog;
+        
+        console.log("تم استرجاع البيانات المحفوظة من: " + savedDate.toLocaleString());
+        
+        // تحديث العرض
+        updateAllStatistics();
+        updateClientsTable();
+        renderReservationsTable();
+        renderInvoicesTable();
+        renderInvoiceAuditLogTable();
+        populateDatalists();
+        populateInvoiceDatalist();
+        
+        // تحديث المخططات
+        if (typeof updateCharts === 'function') {
+            try {
+                updateCharts('day');
+            } catch (chartError) {
+                console.error("خطأ في تحديث المخططات البيانية:", chartError);
+            }
+        }
+        
+        return true;
+    } catch (error) {
+        console.error("خطأ في استرجاع البيانات من التخزين المحلي:", error);
+        return false;
+    }
+}
+
+// إضافة وظيفة جديدة لحفظ البيانات يدوياً
+function manualSave() {
+    isAutoSaving = true;
+    showSaveIndicator();
+    
+    try {
+        // حفظ البيانات في التخزين المحلي
+        if (saveToLocalStorage()) {
+            lastSaveTime = new Date();
+            hasUnsavedChanges = false;
+            alert("تم حفظ البيانات بنجاح في: " + lastSaveTime.toLocaleTimeString());
+        } else {
+            alert("حدث خطأ أثناء محاولة حفظ البيانات");
+        }
+    } catch (error) {
+        console.error("خطأ في الحفظ اليدوي:", error);
+        alert("خطأ في الحفظ: " + error.message);
+    } finally {
+        // إخفاء مؤشر الحفظ بعد ثانية
+        setTimeout(() => {
+            hideSaveIndicator();
+            isAutoSaving = false;
+        }, 1000);
+    }
+}
+
+// وظيفة فتح النسخ الاحتياطية
+function openBackups() {
+    // التحقق إذا كان المستخدم مسجل الدخول إلى Google Drive
+    const savedToken = localStorage.getItem('gDriveToken');
+    
+    if (savedToken) {
+        // فتح نافذة النسخ الاحتياطية السحابية
+        if (typeof listDriveBackups === 'function') {
+            openCloudSettings();
+        } else {
+            alert('خدمة التخزين السحابي غير متاحة حالياً.');
+        }
+    } else {
+        // إذا لم يكن مسجل الدخول، فتح نافذة إعدادات الحفظ السحابي للتسجيل
+        openCloudSettings();
+        alert('يرجى تسجيل الدخول إلى Google Drive أولاً لعرض النسخ الاحتياطية');
+    }
+}
+
+// تجنب تحميل XLSX ودعم SheetJS إذا كان غير متوفر
+window.onerror = function(message, source, lineno, colno, error) {
+    if (message.includes('XLSX is not defined') || message.includes('sheet_js')) {
+        console.warn("SheetJS (XLSX) غير متوفر. سيتم تعطيل وظائف استيراد/تصدير Excel.");
+        
+        // إنشاء رسالة تنبيه في واجهة المستخدم
+        let xlsxWarning = document.createElement('div');
+        xlsxWarning.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffeeba;
+            padding: 10px 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 9999;
+            font-size: 14px;
+        `;
+        xlsxWarning.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;">
+                <i class='bx bx-error-circle' style="font-size:20px;"></i>
+                <div>
+                    <strong>تنبيه:</strong> مكتبة SheetJS (XLSX) غير متوفرة.
+                    <br>بعض وظائف الاستيراد والتصدير قد لا تعمل.
+                </div>
+                <button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;cursor:pointer;font-size:18px;margin-right:5px;">×</button>
+            </div>
+        `;
+        
+        document.body.appendChild(xlsxWarning);
+        setTimeout(() => { xlsxWarning.remove(); }, 8000);
+        
+        return true;  // منع ظهور الخطأ في وحدة تحكم المتصفح
+    }
+    return false;  // السماح بمعالجة الخطأ بشكل طبيعي
+};
+
+// وظيفة لفتح إعدادات التخزين السحابي
+function openCloudSettings() {
+    // التحقق من وجود الملف المطلوب للمصادقة
+    if (typeof googleDriveAuth === 'undefined') {
+        // محاولة تحميل ملف cloud-backup.js إذا لم يكن محملاً
+        const script = document.createElement('script');
+        script.src = 'cloud-backup.js';
+        script.onload = function() {
+            showCloudSettingsModal();
+        };
+        script.onerror = function() {
+            alert('لم يتم العثور على ملف cloud-backup.js. الرجاء التأكد من وجود الملف في المجلد.');
+        };
+        document.head.appendChild(script);
+    } else {
+        showCloudSettingsModal();
+    }
+}
+
+// وظيفة لإظهار مودال إعدادات التخزين السحابي
+function showCloudSettingsModal() {
+    const modal = document.getElementById('cloudSettingsModal');
+    if (modal) {
+        modal.classList.add('active');
+        
+        // تحديث حالة الاتصال بـ Google Drive إذا كان متاحاً
+        if (typeof googleDriveAuth !== 'undefined' && typeof googleDriveAuth.checkAuthStatus === 'function') {
+            googleDriveAuth.checkAuthStatus();
+        }
+    } else {
+        console.error("لم يتم العثور على مودال إعدادات التخزين السحابي");
+    }
+}
+
+// إضافة وظائف للصفحة الرئيسية وقسم الميزات
+document.addEventListener("DOMContentLoaded", function() {
+    // الوظائف الحالية
+    // ...existing code...
+    
+    // إضافة مستمع للأحداث لزر اكتشف المزيد
+    const discoverMoreBtn = document.querySelector('.hero-btn');
+    if (discoverMoreBtn) {
+        discoverMoreBtn.addEventListener('click', toggleFeaturesShowcase);
+    }
+    
+    // إضافة مستمع للأحداث لزر إغلاق قسم الميزات
+    const closeShowcaseBtn = document.getElementById('closeShowcaseBtn');
+    if (closeShowcaseBtn) {
+        closeShowcaseBtn.addEventListener('click', toggleFeaturesShowcase);
+    }
+});
+
+// وظيفة لإظهار/إخفاء قسم عرض الميزات
+function toggleFeaturesShowcase() {
+    const featuresShowcase = document.getElementById('featuresShowcase');
+    if (featuresShowcase) {
+        featuresShowcase.classList.toggle('active');
+        
+        // التمرير إلى قسم الميزات عند إظهاره
+        if (featuresShowcase.classList.contains('active')) {
+            featuresShowcase.scrollIntoView({ behavior: 'smooth' });
+            
+            // تغيير نص الزر إذا تم الضغط عليه
+            const heroBtn = document.querySelector('.hero-btn');
+            if (heroBtn && heroBtn.textContent.trim() === 'اكتشف المزيد') {
+                heroBtn.textContent = 'إخفاء التفاصيل';
+            }
+        } else {
+            // إعادة نص الزر إلى الأصل
+            const heroBtn = document.querySelector('.hero-btn');
+            if (heroBtn && heroBtn.textContent.trim() === 'إخفاء التفاصيل') {
+                heroBtn.textContent = 'اكتشف المزيد';
+            }
+        }
+    }
+}
+
+// ...existing code...
+
+// وظيفة جديدة للمزامنة التلقائية مع السحابة
+function autoSyncWithCloud() {
+    // التحقق مما إذا كان الوضع هو وضع تسجيل الدخول أم لا
+    const isLoggedIn = !document.getElementById('loginModal') || 
+                       document.getElementById('loginModal').style.display === 'none';
+    
+    if (!isLoggedIn) {
+        // إذا لم يتم تسجيل الدخول بعد، انتظر حتى يتم تسجيل الدخول
+        console.log("سيتم المزامنة بعد تسجيل الدخول");
+        hideSyncIndicator();
+        return;
+    }
+    
+    // التحقق إذا كانت ميزة المزامنة التلقائية مفعلة
+    const autoSyncEnabled = localStorage.getItem('autoSyncEnabled') !== 'false'; // افتراضيًا مفعلة
+    
+    if (!autoSyncEnabled) {
+        console.log("المزامنة التلقائية معطلة في الإعدادات");
+        hideSyncIndicator();
+        return;
+    }
+    
+    // التحقق من وجود توكن وصول لـ Google Drive
+    const savedToken = localStorage.getItem('gDriveToken');
+    const tokenExpiry = localStorage.getItem('gDriveTokenExpiry');
+    
+    if (savedToken && tokenExpiry && parseInt(tokenExpiry) > Date.now()) {
+        showSyncIndicator("جاري المزامنة مع آخر نسخة احتياطية...");
+        
+        // استدعاء وظيفة استعادة آخر نسخة احتياطية من الملف cloud-backup.js
+        if (typeof autoRestoreLatestBackup === 'function') {
+            autoRestoreLatestBackup()
+                .then(result => {
+                    if (result.success) {
+                        showSyncSuccess("تمت المزامنة", `تم تحميل آخر نسخة: ${result.backupName}`);
+                    } else if (result.skipped) {
+                        // لا نظهر أي إشعار إذا تم تخطي المزامنة
+                        console.log("تم تخطي المزامنة: " + result.message);
+                    }
+                    hideSyncIndicator();
+                })
+                .catch(error => {
+                    console.error("فشل في المزامنة التلقائية:", error);
+                    showSyncError("فشل في المزامنة", "حدث خطأ أثناء محاولة المزامنة.");
+                    hideSyncIndicator();
+                });
+        } else {
+            console.error("وظيفة autoRestoreLatestBackup غير متوفرة");
+            hideSyncIndicator();
+        }
+    } else {
+        console.log("لم يتم العثور على جلسة مصادقة لـ Google Drive");
+        hideSyncIndicator();
+    }
+}
+
+// إضافة مؤشر المزامنة
+function showSyncIndicator(message) {
+    let syncIndicator = document.getElementById('syncIndicator');
+    
+    if (!syncIndicator) {
+        syncIndicator = document.createElement('div');
+        syncIndicator.id = 'syncIndicator';
+        syncIndicator.style.cssText = `
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--card-bg);
+            border-right: 4px solid var(--primary-color);
+            padding: 10px 20px;
+            border-radius: 4px;
+            z-index: 9000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
         `;
         document.body.appendChild(syncIndicator);
     }
-}
-
-// إظهار مؤشر المزامنة
-function showSyncIndicator(message = "جاري مزامنة البيانات...") {
-    createSyncIndicatorIfNeeded();
-    const syncIndicator = document.getElementById('syncIndicator');
-    if (syncIndicator) {
-        document.getElementById('syncMessage').textContent = message;
-        syncIndicator.style.visibility = 'visible';
-        syncIndicator.style.opacity = '1';
-    }
+    
+    syncIndicator.innerHTML = `
+        <i class='bx bx-sync bx-spin' style="color: var(--primary-color); font-size: 20px;"></i>
+        <span>${message}</span>
+    `;
+    
+    syncIndicator.style.opacity = '1';
+    syncIndicator.style.visibility = 'visible';
 }
 
 // إخفاء مؤشر المزامنة
@@ -400,1999 +3818,53 @@ function hideSyncIndicator() {
     }
 }
 
-// عرض إشعار نجاح المزامنة
+// إظهار رسالة نجاح المزامنة
 function showSyncSuccess(title, message) {
-    showNotification(title, message, 'success');
-}
-
-// عرض خطأ المزامنة
-function showSyncError(title, message) {
-    showNotification(title, message, 'error');
-}
-
-// عرض إشعار عام
-function showNotification(title, message, type = 'info') {
-    // يمكن استبدال هذا بمكتبة إشعارات إذا كنت تستخدم واحدة
-    alert(`${title}\n${message}`);
-}
-
-// تهيئة الرسوم البيانية
-function initCharts() {
-    const reservationChartCtx = document.getElementById('reservationChart').getContext('2d');
-    const reservationBarChartCtx = document.getElementById('reservationBarChart').getContext('2d');
-    const revenueExpenseChartCtx = document.getElementById('revenueExpenseChart').getContext('2d');
-    const invoiceRevenueChartCtx = document.getElementById('invoiceRevenueChart').getContext('2d');
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--success-color);
+        color: white;
+        padding: 15px 30px;
+        border-radius: var(--border-radius);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        animation: fadeIn 0.3s ease;
+    `;
     
-    // إعداد الرسم البياني للحجوزات
-    reservationChart = new Chart(reservationChartCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'عدد الحجوزات',
-                data: [],
-                borderColor: 'rgba(18, 132, 110, 1)',
-                backgroundColor: 'rgba(18, 132, 110, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.3
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                },
-                x: {
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                }
-            }
-        }
-    });
-    
-    // إعداد الرسم البياني للحجوزات حسب العميل
-    reservationBarChart = new Chart(reservationBarChartCtx, {
-        type: 'bar',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'عدد الحجوزات',
-                data: [],
-                backgroundColor: 'rgba(18, 132, 110, 0.6)',
-                borderColor: 'rgba(18, 132, 110, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                },
-                x: {
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                }
-            }
-        }
-    });
-    
-    // إعداد الرسم البياني للإيرادات والمصروفات
-    revenueExpenseChart = new Chart(revenueExpenseChartCtx, {
-        type: 'bar',
-        data: {
-            labels: [],
-            datasets: [
-                {
-                    label: 'الإيرادات',
-                    data: [],
-                    backgroundColor: 'rgba(46, 204, 113, 0.6)',
-                    borderColor: 'rgba(46, 204, 113, 1)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'المصروفات',
-                    data: [],
-                    backgroundColor: 'rgba(231, 76, 60, 0.6)',
-                    borderColor: 'rgba(231, 76, 60, 1)',
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                },
-                x: {
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                }
-            }
-        }
-    });
-    
-    // إعداد الرسم البياني لحالة الفواتير
-    invoiceRevenueChart = new Chart(invoiceRevenueChartCtx, {
-        type: 'pie',
-        data: {
-            labels: ['مدفوعة', 'معلقة'],
-            datasets: [{
-                data: [0, 0],
-                backgroundColor: ['rgba(46, 204, 113, 0.6)', 'rgba(241, 196, 15, 0.6)'],
-                borderColor: ['rgba(46, 204, 113, 1)', 'rgba(241, 196, 15, 1)'],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
-        }
-    });
-}
-
-// تحديث الرسوم البيانية
-function updateCharts(grouping = 'day') {
-    // تنظيف البيانات
-    const cleanData = (period) => {
-        const now = new Date();
-        let data = [];
-        
-        if (period === 'day') {
-            // بيانات يومية (آخر 7 أيام)
-            for (let i = 6; i >= 0; i--) {
-                const day = new Date(now);
-                day.setDate(now.getDate() - i);
-                data.push({
-                    date: day,
-                    label: day.toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' }),
-                    reservations: Math.floor(Math.random() * 5),
-                    revenue: Math.floor(Math.random() * 1000) + 500,
-                    expense: Math.floor(Math.random() * 400) + 100
-                });
-            }
-        } else if (period === 'month') {
-            // بيانات شهرية (آخر 6 أشهر)
-            for (let i = 5; i >= 0; i--) {
-                const month = new Date(now);
-                month.setMonth(now.getMonth() - i);
-                data.push({
-                    date: month,
-                    label: month.toLocaleDateString('ar-SA', { month: 'short', year: 'numeric' }),
-                    reservations: Math.floor(Math.random() * 20) + 5,
-                    revenue: Math.floor(Math.random() * 5000) + 2000,
-                    expense: Math.floor(Math.random() * 2000) + 500
-                });
-            }
-        } else {
-            // بيانات سنوية (آخر 5 سنوات)
-            for (let i = 4; i >= 0; i--) {
-                const year = new Date(now);
-                year.setFullYear(now.getFullYear() - i);
-                data.push({
-                    date: year,
-                    label: year.getFullYear().toString(),
-                    reservations: Math.floor(Math.random() * 100) + 20,
-                    revenue: Math.floor(Math.random() * 20000) + 10000,
-                    expense: Math.floor(Math.random() * 8000) + 2000
-                });
-            }
-        }
-        
-        return data;
-    };
-    
-    const data = cleanData(grouping);
-    
-    // تحديث رسم الحجوزات
-    reservationChart.data.labels = data.map(item => item.label);
-    reservationChart.data.datasets[0].data = data.map(item => item.reservations);
-    reservationChart.update();
-    
-    // تحديث رسم الحجوزات حسب العميل
-    const clientData = clients.map(client => {
-        const count = reservations.filter(res => res.client === client.name).length;
-        return { client: client.name, count };
-    }).sort((a, b) => b.count - a.count);
-    
-    reservationBarChart.data.labels = clientData.map(item => item.client);
-    reservationBarChart.data.datasets[0].data = clientData.map(item => item.count);
-    reservationBarChart.update();
-    
-    // تحديث رسم الإيرادات والمصروفات
-    revenueExpenseChart.data.labels = data.map(item => item.label);
-    revenueExpenseChart.data.datasets[0].data = data.map(item => item.revenue);
-    revenueExpenseChart.data.datasets[1].data = data.map(item => item.expense);
-    revenueExpenseChart.update();
-    
-    // تحديث رسم حالة الفواتير
-    const paidInvoices = invoices.filter(inv => inv.isPaid).length;
-    const pendingInvoices = invoices.filter(inv => !inv.isPaid).length;
-    
-    invoiceRevenueChart.data.datasets[0].data = [paidInvoices, pendingInvoices];
-    invoiceRevenueChart.update();
-}
-
-// تحديث الإحصائيات
-function updateAllStatistics() {
-    // حساب الإيرادات الإجمالية
-    const totalRevenue = reservations.reduce((sum, res) => sum + res.workPrice, 0);
-    document.getElementById('totalRevenue').textContent = totalRevenue.toLocaleString();
-    
-    // حساب مستحقات المعلقين
-    const totalActorFee = reservations.reduce((sum, res) => {
-        const actorFees = res.voiceActors.reduce((sum, actor) => sum + actor.fee, 0);
-        return sum + (res.actorPaid ? 0 : actorFees);
-    }, 0);
-    document.getElementById('totalActorFee').textContent = totalActorFee.toLocaleString();
-    
-    // تحديث الرصيد المتاح
-    const availableFunds = balance - monthlyExpense;
-    document.getElementById('availableFunds').textContent = availableFunds.toLocaleString();
-    
-    // تحديث الرصيد الحالي
-    document.getElementById('balanceSpan').textContent = balance.toLocaleString();
-    
-    // حساب صافي الربح
-    const netProfit = totalRevenue - totalActorFee;
-    document.getElementById('netProfit').textContent = netProfit.toLocaleString();
-}
-
-// تحديث الرصيد
-function updateBalance() {
-    const newBalanceInput = document.getElementById('newBalance');
-    const newBalanceValue = parseFloat(newBalanceInput.value);
-    
-    if (isNaN(newBalanceValue) || newBalanceValue <= 0) {
-        alert("يرجى إدخال قيمة صحيحة للرصيد");
-        return;
-    }
-    
-    // حفظ الحالة قبل التغيير
-    saveState();
-    
-    // تحديث الرصيد
-    balance = newBalanceValue;
-    document.getElementById('balanceSpan').textContent = balance.toLocaleString();
-    
-    // تحديث الأموال المتاحة
-    const availableFunds = balance - monthlyExpense;
-    document.getElementById('availableFunds').textContent = availableFunds.toLocaleString();
-    
-    // عرض إشعار بالنجاح
-    showNotification("تم التحديث", "تم تحديث الرصيد بنجاح", "success");
-    
-    // مسح حقل الإدخال
-    newBalanceInput.value = "";
-}
-
-// ملء قوائم البيانات المنسدلة
-function populateDatalists() {
-    // قائمة العملاء
-    const clientList = document.getElementById('clientList');
-    if (clientList) {
-        clientList.innerHTML = '';
-        clients.forEach(client => {
-            const option = document.createElement('option');
-            option.value = client.name;
-            clientList.appendChild(option);
-        });
-    }
-    
-    // قائمة الفواتير
-    const invoiceList = document.getElementById('invoiceList');
-    if (invoiceList) {
-        invoiceList.innerHTML = '';
-        invoices.forEach(invoice => {
-            const option = document.createElement('option');
-            option.value = invoice.invoiceNumber;
-            invoiceList.appendChild(option);
-        });
-    }
-}
-
-// إنشاء مودال تعديل المعلق
-function createEditVoiceModal() {
-    if (document.getElementById('editVoiceModal')) return;
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.id = 'editVoiceModal';
-    
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>تعديل معلق</h3>
-                <button class="close-btn" onclick="closeModal('editVoiceModal')">×</button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="editVoiceIndex">
-                <div class="form-group">
-                    <label for="editVoiceName">اسم المعلق:</label>
-                    <input type="text" id="editVoiceName" class="input" required>
-                </div>
-                <div class="form-group">
-                    <label for="editVoiceRate">أجر الساعة:</label>
-                    <input type="number" id="editVoiceRate" class="input" min="0" step="1" required>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('editVoiceModal')">إلغاء</button>
-                <button class="btn" onclick="saveVoiceChanges()">حفظ</button>
-            </div>
+    notification.innerHTML = `
+        <i class='bx bx-check-circle' style="font-size: 24px;"></i>
+        <div>
+            <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>
+            <div style="font-size: 13px;">${message}</div>
         </div>
+        <button onclick="this.parentNode.remove()" style="position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; font-size: 18px; color: white;">×</button>
     `;
     
-    document.body.appendChild(modal);
-}
-
-// إنشاء مودال تعديل العميل
-function createEditClientModal() {
-    if (document.getElementById('editClientModal')) return;
+    document.body.appendChild(notification);
     
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.id = 'editClientModal';
-    
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>تعديل عميل</h3>
-                <button class="close-btn" onclick="closeModal('editClientModal')">×</button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="editClientIndex">
-                <div class="form-group">
-                    <label for="editClientName">اسم العميل:</label>
-                    <input type="text" id="editClientName" class="input" required>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('editClientModal')">إلغاء</button>
-                <button class="btn" onclick="saveClientChanges()">حفظ</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-}
-
-// إنشاء مودال تعديل الحجز
-function createEditReservationModal() {
-    if (document.getElementById('editReservationModal')) return;
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.id = 'editReservationModal';
-    
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="reservationModalTitle">تعديل حجز</h3>
-                <button class="close-btn" onclick="closeModal('editReservationModal')">×</button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="editReservationIndex">
-                <div class="form-group">
-                    <label for="reservationId">رقم الحجز:</label>
-                    <input type="text" id="reservationId" class="input" required>
-                </div>
-                <div class="form-group">
-                    <label for="reservationClient">العميل:</label>
-                    <input type="text" id="reservationClient" class="input" list="clientList" required>
-                </div>
-                <div class="form-group">
-                    <label for="reservationTime">موعد التسجيل:</label>
-                    <input type="datetime-local" id="reservationTime" class="input" required>
-                </div>
-                <div class="form-group">
-                    <label for="reservationPrice">سعر العمل:</label>
-                    <input type="number" id="reservationPrice" class="input" min="0" step="1" required>
-                </div>
-                <div class="form-group">
-                    <label>المعلقون:</label>
-                    <div id="voiceActorsContainer">
-                        <!-- سيتم إضافة المعلقين هنا ديناميكياً -->
-                    </div>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="addVoiceActorField()">
-                        <i class='bx bx-plus'></i> إضافة معلق
-                    </button>
-                </div>
-                <div class="form-group">
-                    <label for="reservationInvoice">رقم الفاتورة:</label>
-                    <input type="text" id="reservationInvoice" class="input" list="invoiceList">
-                </div>
-                <div class="form-group">
-                    <label for="actorDueDate">موعد استحقاق المعلق:</label>
-                    <input type="date" id="actorDueDate" class="input">
-                </div>
-                <div class="form-group">
-                    <div class="toggle-switch">
-                        <input type="checkbox" id="actorPaidStatus">
-                        <label for="actorPaidStatus">تم دفع مستحقات المعلقين</label>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <div class="toggle-switch">
-                        <input type="checkbox" id="invoicePaidStatus">
-                        <label for="invoicePaidStatus">تم دفع الفاتورة</label>
-                    </div>
-                </div>
-                <div id="paidDateContainer" class="form-group" style="display: none;">
-                    <label for="paidDate">تاريخ الدفع:</label>
-                    <input type="date" id="paidDate" class="input">
-                </div>
-                <div class="form-group">
-                    <label for="reservationNotes">ملاحظات:</label>
-                    <textarea id="reservationNotes" class="input" rows="3"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('editReservationModal')">إلغاء</button>
-                <button class="btn" onclick="saveReservationChanges()">حفظ</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // إضافة مستمع أحداث لحالة دفع الفاتورة
-    document.getElementById('invoicePaidStatus').addEventListener('change', function() {
-        const paidDateContainer = document.getElementById('paidDateContainer');
-        if (this.checked) {
-            paidDateContainer.style.display = 'block';
-        } else {
-            paidDateContainer.style.display = 'none';
-        }
-    });
-}
-
-// إنشاء مودال إضافة فاتورة
-function createAddInvoiceModal() {
-    if (document.getElementById('addInvoiceModal')) return;
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.id = 'addInvoiceModal';
-    
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>إضافة فاتورة</h3>
-                <button class="close-btn" onclick="closeModal('addInvoiceModal')">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="invoiceNumber">رقم الفاتورة:</label>
-                    <input type="text" id="invoiceNumber" class="input" required>
-                </div>
-                <div class="form-group">
-                    <label for="invoiceDate">تاريخ الفاتورة:</label>
-                    <input type="date" id="invoiceDate" class="input" required>
-                </div>
-                <div class="form-group">
-                    <label for="invoiceCustomer">العميل:</label>
-                    <input type="text" id="invoiceCustomer" class="input" list="clientList" required>
-                </div>
-                <div class="form-group">
-                    <label for="invoiceEmail">البريد الإلكتروني:</label>
-                    <input type="email" id="invoiceEmail" class="input">
-                </div>
-                <div class="form-group">
-                    <label for="invoiceAdditionalInfo">معلومات إضافية:</label>
-                    <textarea id="invoiceAdditionalInfo" class="input" rows="2"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="invoiceSubtotal">المجموع الفرعي:</label>
-                    <input type="number" id="invoiceSubtotal" class="input" min="0" step="1" required>
-                </div>
-                <div class="form-group">
-                    <label for="invoiceTax1">ضريبة 1 (%):</label>
-                    <input type="number" id="invoiceTax1" class="input" min="0" step="0.1" value="0">
-                </div>
-                <div class="form-group">
-                    <label for="invoiceTax2">ضريبة 2 (%):</label>
-                    <input type="number" id="invoiceTax2" class="input" min="0" step="0.1" value="0">
-                </div>
-                <div class="form-group">
-                    <label for="invoiceAmount">إجمالي الفاتورة:</label>
-                    <input type="number" id="invoiceAmount" class="input" min="0" step="1" readonly>
-                </div>
-                <div class="form-group">
-                    <div class="toggle-switch">
-                        <input type="checkbox" id="invoiceIsPaid">
-                        <label for="invoiceIsPaid">تم دفع الفاتورة</label>
-                    </div>
-                </div>
-                <div id="invoicePaymentContainer" class="form-group" style="display: none;">
-                    <label for="invoiceReceivedAmount">المبلغ المستلم:</label>
-                    <input type="number" id="invoiceReceivedAmount" class="input" min="0" step="1">
-                    
-                    <label for="invoicePaymentDate">تاريخ الدفع:</label>
-                    <input type="date" id="invoicePaymentDate" class="input">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('addInvoiceModal')">إلغاء</button>
-                <button class="btn" onclick="saveNewInvoice()">حفظ</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // إضافة مستمعي أحداث
-    document.getElementById('invoiceIsPaid').addEventListener('change', function() {
-        const container = document.getElementById('invoicePaymentContainer');
-        if (this.checked) {
-            container.style.display = 'block';
-        } else {
-            container.style.display = 'none';
-        }
-    });
-    
-    // حساب إجمالي الفاتورة تلقائياً
-    const subtotalInput = document.getElementById('invoiceSubtotal');
-    const tax1Input = document.getElementById('invoiceTax1');
-    const tax2Input = document.getElementById('invoiceTax2');
-    const totalInput = document.getElementById('invoiceAmount');
-    
-    const calculateTotal = () => {
-        const subtotal = parseFloat(subtotalInput.value) || 0;
-        const tax1 = parseFloat(tax1Input.value) || 0;
-        const tax2 = parseFloat(tax2Input.value) || 0;
-        
-        const tax1Amount = subtotal * (tax1 / 100);
-        const tax2Amount = subtotal * (tax2 / 100);
-        const total = subtotal + tax1Amount + tax2Amount;
-        
-        totalInput.value = total.toFixed(2);
-    };
-    
-    subtotalInput.addEventListener('input', calculateTotal);
-    tax1Input.addEventListener('input', calculateTotal);
-    tax2Input.addEventListener('input', calculateTotal);
-}
-
-// إضافة حقل معلق جديد
-function addVoiceActorField(name = '', fee = '') {
-    const container = document.getElementById('voiceActorsContainer');
-    const index = container.children.length;
-    
-    const actorRow = document.createElement('div');
-    actorRow.className = 'voice-actor-row';
-    actorRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: center;';
-    
-    actorRow.innerHTML = `
-        <select class="input actor-name" style="flex: 2;">
-            <option value="">اختر معلق</option>
-            ${voices.map(voice => `<option value="${voice.name}" ${voice.name === name ? 'selected' : ''}>${voice.name}</option>`).join('')}
-        </select>
-        <input type="number" class="input actor-fee" value="${fee}" min="0" step="1" placeholder="الأجر" style="flex: 1;">
-        <button type="button" class="btn-icon delete" onclick="removeVoiceActorField(this)" title="حذف المعلق">
-            <i class='bx bx-trash'></i>
-        </button>
-    `;
-    
-    container.appendChild(actorRow);
-}
-
-// حذف حقل معلق
-function removeVoiceActorField(button) {
-    const row = button.closest('.voice-actor-row');
-    if (row) {
-        row.remove();
-    }
-}
-
-// عرض مودال إضافة معلق
-function showAddVoiceModal() {
-    createEditVoiceModal();
-    document.getElementById('editVoiceIndex').value = -1;
-    document.getElementById('editVoiceName').value = '';
-    document.getElementById('editVoiceRate').value = '';
-    document.querySelector('#editVoiceModal .modal-header h3').textContent = 'إضافة معلق';
-    document.getElementById('editVoiceModal').classList.add('active');
-}
-
-// عرض مودال تعديل معلق
-function showEditVoiceModal(index) {
-    createEditVoiceModal();
-    const voice = voices[index];
-    document.getElementById('editVoiceIndex').value = index;
-    document.getElementById('editVoiceName').value = voice.name;
-    document.getElementById('editVoiceRate').value = voice.rate;
-    document.querySelector('#editVoiceModal .modal-header h3').textContent = 'تعديل معلق';
-    document.getElementById('editVoiceModal').classList.add('active');
-}
-
-// حفظ تغييرات المعلق
-function saveVoiceChanges() {
-    const index = parseInt(document.getElementById('editVoiceIndex').value);
-    const name = document.getElementById('editVoiceName').value.trim();
-    const rate = parseInt(document.getElementById('editVoiceRate').value);
-    
-    if (!name || isNaN(rate) || rate < 0) {
-        alert("يرجى ملء جميع الحقول بشكل صحيح");
-        return;
-    }
-    
-    // حفظ الحالة قبل التغيير
-    saveState();
-    
-    if (index === -1) {
-        // إضافة معلق جديد
-        voices.push({ name, rate });
-        showNotification("تمت الإضافة", "تم إضافة المعلق بنجاح", "success");
-    } else {
-        // تعديل معلق موجود
-        voices[index] = { name, rate };
-        showNotification("تم التحديث", "تم تحديث بيانات المعلق بنجاح", "success");
-    }
-    
-    // تحديث الجدول
-    renderVoicesTable();
-    
-    // إعادة ملء قوائم البيانات
-    populateDatalists();
-    
-    // إغلاق المودال
-    closeModal('editVoiceModal');
-}
-
-// حذف معلق
-function deleteVoice(index) {
-    if (confirm("هل أنت متأكد من حذف هذا المعلق؟")) {
-        // حفظ الحالة قبل التغيير
-        saveState();
-        
-        voices.splice(index, 1);
-        renderVoicesTable();
-        showNotification("تم الحذف", "تم حذف المعلق بنجاح", "success");
-    }
-}
-
-// عرض مودال إضافة عميل
-function showAddClientModal() {
-    createEditClientModal();
-    document.getElementById('editClientIndex').value = -1;
-    document.getElementById('editClientName').value = '';
-    document.querySelector('#editClientModal .modal-header h3').textContent = 'إضافة عميل';
-    document.getElementById('editClientModal').classList.add('active');
-}
-
-// عرض مودال تعديل عميل
-function showEditClientModal(index) {
-    createEditClientModal();
-    const client = clients[index];
-    document.getElementById('editClientIndex').value = index;
-    document.getElementById('editClientName').value = client.name;
-    document.querySelector('#editClientModal .modal-header h3').textContent = 'تعديل عميل';
-    document.getElementById('editClientModal').classList.add('active');
-}
-
-// حفظ تغييرات العميل
-function saveClientChanges() {
-    const index = parseInt(document.getElementById('editClientIndex').value);
-    const name = document.getElementById('editClientName').value.trim();
-    
-    if (!name) {
-        alert("يرجى إدخال اسم العميل");
-        return;
-    }
-    
-    // حفظ الحالة قبل التغيير
-    saveState();
-    
-    if (index === -1) {
-        // إضافة عميل جديد
-        clients.push({ name, addedTime: Date.now() });
-        showNotification("تمت الإضافة", "تم إضافة العميل بنجاح", "success");
-    } else {
-        // تعديل عميل موجود
-        const oldClient = clients[index];
-        clients[index] = { name, addedTime: oldClient.addedTime };
-        showNotification("تم التحديث", "تم تحديث بيانات العميل بنجاح", "success");
-    }
-    
-    // تحديث الجدول
-    renderClientsTable();
-    
-    // إعادة ملء قوائم البيانات
-    populateDatalists();
-    
-    // إغلاق المودال
-    closeModal('editClientModal');
-}
-
-// حذف عميل
-function deleteClient(index) {
-    if (confirm("هل أنت متأكد من حذف هذا العميل؟")) {
-        // حفظ الحالة قبل التغيير
-        saveState();
-        
-        clients.splice(index, 1);
-        renderClientsTable();
-        showNotification("تم الحذف", "تم حذف العميل بنجاح", "success");
-    }
-}
-
-// عرض مودال إضافة حجز
-function showAddReservationModal() {
-    createEditReservationModal();
-    document.getElementById('editReservationIndex').value = -1;
-    document.getElementById('reservationId').value = `#RES-${reservations.length + 1}`.padStart(6, '0');
-    document.getElementById('reservationClient').value = '';
-    document.getElementById('reservationTime').value = '';
-    document.getElementById('reservationPrice').value = '';
-    document.getElementById('reservationInvoice').value = '';
-    document.getElementById('actorDueDate').value = '';
-    document.getElementById('actorPaidStatus').checked = false;
-    document.getElementById('invoicePaidStatus').checked = false;
-    document.getElementById('paidDateContainer').style.display = 'none';
-    document.getElementById('paidDate').value = '';
-    document.getElementById('reservationNotes').value = '';
-    
-    // مسح حقول المعلقين
-    const container = document.getElementById('voiceActorsContainer');
-    container.innerHTML = '';
-    addVoiceActorField();
-    
-    document.querySelector('#editReservationModal .modal-header h3').textContent = 'إضافة حجز';
-    document.getElementById('editReservationModal').classList.add('active');
-}
-
-// عرض مودال تعديل حجز
-function showEditReservationModal(index) {
-    createEditReservationModal();
-    const reservation = reservations[index];
-    
-    document.getElementById('editReservationIndex').value = index;
-    document.getElementById('reservationId').value = reservation.id;
-    document.getElementById('reservationClient').value = reservation.client;
-    document.getElementById('reservationTime').value = reservation.recordTime;
-    document.getElementById('reservationPrice').value = reservation.workPrice;
-    document.getElementById('reservationInvoice').value = reservation.invoiceNumber;
-    document.getElementById('actorDueDate').value = reservation.actorDueDate || '';
-    document.getElementById('actorPaidStatus').checked = reservation.actorPaid;
-    document.getElementById('invoicePaidStatus').checked = reservation.invoicePaid;
-    document.getElementById('paidDate').value = reservation.paidDate || '';
-    document.getElementById('reservationNotes').value = reservation.notes || '';
-    
-    // عرض/إخفاء حقل تاريخ الدفع
-    document.getElementById('paidDateContainer').style.display = reservation.invoicePaid ? 'block' : 'none';
-    
-    // ملء حقول المعلقين
-    const container = document.getElementById('voiceActorsContainer');
-    container.innerHTML = '';
-    
-    if (reservation.voiceActors && reservation.voiceActors.length > 0) {
-        reservation.voiceActors.forEach(actor => {
-            addVoiceActorField(actor.name, actor.fee);
-        });
-    } else {
-        addVoiceActorField();
-    }
-    
-    document.querySelector('#editReservationModal .modal-header h3').textContent = 'تعديل حجز';
-    document.getElementById('editReservationModal').classList.add('active');
-}
-
-// حفظ تغييرات الحجز
-function saveReservationChanges() {
-    const index = parseInt(document.getElementById('editReservationIndex').value);
-    const id = document.getElementById('reservationId').value.trim();
-    const client = document.getElementById('reservationClient').value.trim();
-    const recordTime = document.getElementById('reservationTime').value;
-    const workPrice = parseFloat(document.getElementById('reservationPrice').value);
-    const invoiceNumber = document.getElementById('reservationInvoice').value.trim();
-    const actorDueDate = document.getElementById('actorDueDate').value;
-    const actorPaid = document.getElementById('actorPaidStatus').checked;
-    const invoicePaid = document.getElementById('invoicePaidStatus').checked;
-    const paidDate = document.getElementById('paidDate').value;
-    const notes = document.getElementById('reservationNotes').value.trim();
-    
-    // جمع بيانات المعلقين
-    const voiceActors = [];
-    const actorRows = document.querySelectorAll('.voice-actor-row');
-    
-    for (const row of actorRows) {
-        const name = row.querySelector('.actor-name').value;
-        const fee = parseFloat(row.querySelector('.actor-fee').value);
-        
-        if (name && !isNaN(fee)) {
-            voiceActors.push({ name, fee });
-        }
-    }
-    
-    if (!id || !client || !recordTime || isNaN(workPrice) || workPrice <= 0 || voiceActors.length === 0) {
-        alert("يرجى ملء جميع الحقول الإلزامية بشكل صحيح");
-        return;
-    }
-    
-    // حفظ الحالة قبل التغيير
-    saveState();
-    
-    const reservationData = {
-        id,
-        client,
-        recordTime,
-        workPrice,
-        voiceActors,
-        invoiceNumber,
-        actorDueDate,
-        actorPaid,
-        notes,
-        paidDate: invoicePaid ? paidDate : '',
-        invoicePaid
-    };
-    
-    if (index === -1) {
-        // إضافة حجز جديد
-        reservations.push(reservationData);
-        showNotification("تمت الإضافة", "تم إضافة الحجز بنجاح", "success");
-    } else {
-        // تعديل حجز موجود
-        reservations[index] = reservationData;
-        showNotification("تم التحديث", "تم تحديث بيانات الحجز بنجاح", "success");
-    }
-    
-    // تحديث الجدول
-    renderReservationsTable();
-    
-    // تحديث الإحصائيات
-    updateAllStatistics();
-    
-    // تحديث الرسوم البيانية
-    updateCharts(document.querySelector('input[name="chartGrouping"]:checked').value);
-    
-    // إغلاق المودال
-    closeModal('editReservationModal');
-}
-
-// حذف حجز
-function deleteReservation(index) {
-    if (confirm("هل أنت متأكد من حذف هذا الحجز؟")) {
-        // حفظ الحالة قبل التغيير
-        saveState();
-        
-        reservations.splice(index, 1);
-        renderReservationsTable();
-        updateAllStatistics();
-        updateCharts(document.querySelector('input[name="chartGrouping"]:checked').value);
-        showNotification("تم الحذف", "تم حذف الحجز بنجاح", "success");
-    }
-}
-
-// عرض مودال إضافة فاتورة
-function showAddInvoiceModal() {
-    document.getElementById('addInvoiceModal').classList.add('active');
-    
-    // تعيين التاريخ الحالي
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('invoiceDate').value = today;
-    
-    // مسح الحقول الأخرى
-    document.getElementById('invoiceNumber').value = `INV${new Date().getFullYear()}-${(invoices.length + 1).toString().padStart(2, '0')}`;
-    document.getElementById('invoiceCustomer').value = '';
-    document.getElementById('invoiceEmail').value = '';
-    document.getElementById('invoiceAdditionalInfo').value = '';
-    document.getElementById('invoiceSubtotal').value = '';
-    document.getElementById('invoiceTax1').value = '0';
-    document.getElementById('invoiceTax2').value = '0';
-    document.getElementById('invoiceAmount').value = '';
-    document.getElementById('invoiceIsPaid').checked = false;
-    document.getElementById('invoicePaymentContainer').style.display = 'none';
-    document.getElementById('invoiceReceivedAmount').value = '';
-    document.getElementById('invoicePaymentDate').value = today;
-}
-
-// حفظ فاتورة جديدة
-function saveNewInvoice() {
-    const invoiceNumber = document.getElementById('invoiceNumber').value.trim();
-    const date = document.getElementById('invoiceDate').value;
-    const customer = document.getElementById('invoiceCustomer').value.trim();
-    const email = document.getElementById('invoiceEmail').value.trim();
-    const additionalInfo = document.getElementById('invoiceAdditionalInfo').value.trim();
-    const subtotal = parseFloat(document.getElementById('invoiceSubtotal').value);
-    const tax1 = parseFloat(document.getElementById('invoiceTax1').value) || 0;
-    const tax2 = parseFloat(document.getElementById('invoiceTax2').value) || 0;
-    const invoiceAmount = parseFloat(document.getElementById('invoiceAmount').value);
-    const isPaid = document.getElementById('invoiceIsPaid').checked;
-    
-    let receivedAmount = 0;
-    let paymentDate = '';
-    
-    if (isPaid) {
-        receivedAmount = parseFloat(document.getElementById('invoiceReceivedAmount').value) || invoiceAmount;
-        paymentDate = document.getElementById('invoicePaymentDate').value;
-    }
-    
-    if (!invoiceNumber || !date || !customer || isNaN(subtotal) || subtotal <= 0) {
-        alert("يرجى ملء جميع الحقول الإلزامية بشكل صحيح");
-        return;
-    }
-    
-    // حفظ الحالة قبل التغيير
-    saveState();
-    
-    // إضافة الفاتورة الجديدة
-    const newInvoice = {
-        invoiceNumber,
-        date,
-        customer,
-        email,
-        additionalInfo,
-        subtotal,
-        tax1,
-        tax2,
-        invoiceAmount,
-        receivedAmount,
-        paymentDate,
-        isPaid
-    };
-    
-    invoices.push(newInvoice);
-    
-    // إضافة سجل للعملية
-    invoiceAuditLog.push({
-        operation: "Create",
-        invoiceNumber,
-        date: new Date().toLocaleString()
-    });
-    
-    // تحديث الجداول
-    renderInvoicesTable();
-    renderInvoiceAuditLogTable();
-    
-    // إعادة ملء قوائم البيانات
-    populateDatalists();
-    
-    // تحديث الرسوم البيانية
-    updateCharts(document.querySelector('input[name="chartGrouping"]:checked').value);
-    
-    // إغلاق المودال
-    closeModal('addInvoiceModal');
-    
-    showNotification("تمت الإضافة", "تم إضافة الفاتورة بنجاح", "success");
-}
-
-// حذف فاتورة
-function deleteInvoice(index) {
-    if (confirm("هل أنت متأكد من حذف هذه الفاتورة؟")) {
-        // حفظ الحالة قبل التغيير
-        saveState();
-        
-        const invoice = invoices[index];
-        
-        // إضافة سجل للعملية
-        invoiceAuditLog.push({
-            operation: "Delete",
-            invoiceNumber: invoice.invoiceNumber,
-            date: new Date().toLocaleString()
-        });
-        
-        // حذف الفاتورة
-        invoices.splice(index, 1);
-        
-        // تحديث الجداول
-        renderInvoicesTable();
-        renderInvoiceAuditLogTable();
-        
-        // تحديث الرسوم البيانية
-        updateCharts(document.querySelector('input[name="chartGrouping"]:checked').value);
-        
-        showNotification("تم الحذف", "تم حذف الفاتورة بنجاح", "success");
-    }
-}
-
-// مسح سجل عمليات الفواتير
-function clearInvoiceAuditLog() {
-    if (confirm("هل أنت متأكد من مسح سجل العمليات بالكامل؟")) {
-        // حفظ الحالة قبل التغيير
-        saveState();
-        
-        invoiceAuditLog = [];
-        renderInvoiceAuditLogTable();
-        showNotification("تم المسح", "تم مسح سجل العمليات بنجاح", "success");
-    }
-}
-
-// عرض جداول البيانات
-function renderVoicesTable() {
-    const table = document.getElementById('voicesTable');
-    if (!table) return;
-    
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    if (voices.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="3" class="text-center">لا توجد بيانات متاحة</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    voices.forEach((voice, index) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${voice.name}</td>
-            <td>${voice.rate} ريال</td>
-            <td>
-                <div class="action-btns">
-                    <button class="btn-icon edit" onclick="showEditVoiceModal(${index})" title="تعديل">
-                        <i class='bx bx-edit'></i>
-                    </button>
-                    <button class="btn-icon delete" onclick="deleteVoice(${index})" title="حذف">
-                        <i class='bx bx-trash'></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-function renderClientsTable() {
-    const table = document.getElementById('clientsTable');
-    if (!table) return;
-    
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    if (clients.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="3" class="text-center">لا توجد بيانات متاحة</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    clients.forEach((client, index) => {
-        const row = document.createElement('tr');
-        const date = new Date(client.addedTime);
-        row.innerHTML = `
-            <td>${client.name}</td>
-            <td>${date.toLocaleDateString()}</td>
-            <td>
-                <div class="action-btns">
-                    <button class="btn-icon edit" onclick="showEditClientModal(${index})" title="تعديل">
-                        <i class='bx bx-edit'></i>
-                    </button>
-                    <button class="btn-icon delete" onclick="deleteClient(${index})" title="حذف">
-                        <i class='bx bx-trash'></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-function renderReservationsTable() {
-    const table = document.getElementById('reservationsTable');
-    if (!table) return;
-    
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    if (reservations.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="8" class="text-center">لا توجد بيانات متاحة</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    reservations.forEach((reservation, index) => {
-        const row = document.createElement('tr');
-        
-        // تنسيق وقت التسجيل بشكل أفضل
-        const recordTime = new Date(reservation.recordTime);
-        const formattedTime = `${recordTime.toLocaleDateString()} ${recordTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-        
-        // إعداد قائمة المعلقين
-        const voiceActorsList = reservation.voiceActors.map(actor => `${actor.name} (${actor.fee} ريال)`).join('<br>');
-        
-        // حالة الدفع
-        const paymentStatus = reservation.invoicePaid
-            ? `<span class="status-badge success">مدفوعة</span>`
-            : `<span class="status-badge warning">معلقة</span>`;
-        
-        row.innerHTML = `
-            <td>${reservation.id}</td>
-            <td>${reservation.client}</td>
-            <td>${formattedTime}</td>
-            <td>${reservation.workPrice} ريال</td>
-            <td>${voiceActorsList}</td>
-            <td>${reservation.invoiceNumber || '-'}</td>
-            <td>${paymentStatus}</td>
-            <td>
-                <div class="action-btns">
-                    <button class="btn-icon edit" onclick="showEditReservationModal(${index})" title="تعديل">
-                        <i class='bx bx-edit'></i>
-                    </button>
-                    <button class="btn-icon delete" onclick="deleteReservation(${index})" title="حذف">
-                        <i class='bx bx-trash'></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-function renderInvoicesTable() {
-    const table = document.getElementById('invoicesTable');
-    if (!table) return;
-    
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    if (invoices.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="7" class="text-center">لا توجد بيانات متاحة</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    invoices.forEach((invoice, index) => {
-        const row = document.createElement('tr');
-        
-        // حالة الدفع
-        const paymentStatus = invoice.isPaid
-            ? `<span class="status-badge success">مدفوعة</span>`
-            : `<span class="status-badge warning">معلقة</span>`;
-        
-        row.innerHTML = `
-            <td>${invoice.invoiceNumber}</td>
-            <td>${invoice.date}</td>
-            <td>${invoice.customer}</td>
-            <td>${invoice.invoiceAmount} ريال</td>
-            <td>${invoice.receivedAmount} ريال</td>
-            <td>${paymentStatus}</td>
-            <td>
-                <div class="action-btns">
-                    <button class="btn-icon edit" onclick="showInvoiceDetails(${index})" title="عرض التفاصيل">
-                        <i class='bx bx-show'></i>
-                    </button>
-                    <button class="btn-icon delete" onclick="deleteInvoice(${index})" title="حذف">
-                        <i class='bx bx-trash'></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-function showInvoiceDetails(index) {
-    const invoice = invoices[index];
-    alert(`تفاصيل الفاتورة ${invoice.invoiceNumber}:\n` +
-          `العميل: ${invoice.customer}\n` +
-          `التاريخ: ${invoice.date}\n` +
-          `المبلغ: ${invoice.invoiceAmount} ريال\n` +
-          `حالة الدفع: ${invoice.isPaid ? 'مدفوعة' : 'معلقة'}`);
-}
-
-function renderInvoiceAuditLogTable() {
-    const table = document.getElementById('invoiceAuditLogTable');
-    if (!table) return;
-    
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    if (invoiceAuditLog.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="3" class="text-center">لا توجد بيانات متاحة</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    // عرض أحدث السجلات أولاً
-    [...invoiceAuditLog].reverse().forEach((log) => {
-        const row = document.createElement('tr');
-        
-        // ترجمة نوع العملية
-        let operation;
-        switch (log.operation) {
-            case 'Import': operation = 'استيراد'; break;
-            case 'Create': operation = 'إنشاء'; break;
-            case 'Update': operation = 'تحديث'; break;
-            case 'Delete': operation = 'حذف'; break;
-            default: operation = log.operation;
-        }
-        
-        row.innerHTML = `
-            <td>${operation}</td>
-            <td>${log.invoiceNumber}</td>
-            <td>${log.date}</td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// تنفيذ البحث في الجداول
-function setupSearchListeners() {
-    // البحث في جدول المعلقين
-    const voiceSearchInput = document.getElementById('voiceSearchInput');
-    if (voiceSearchInput) {
-        voiceSearchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#voicesTable tbody tr');
-            
-            rows.forEach(row => {
-                const name = row.cells[0].textContent.toLowerCase();
-                if (name.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-    }
-    
-    // البحث في جدول العملاء
-    const clientSearchInput = document.getElementById('clientSearchInput');
-    if (clientSearchInput) {
-        clientSearchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#clientsTable tbody tr');
-            
-            rows.forEach(row => {
-                const name = row.cells[0].textContent.toLowerCase();
-                if (name.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-    }
-    
-    // البحث في جدول الحجوزات
-    const reservationSearchInput = document.getElementById('reservationSearchInput');
-    if (reservationSearchInput) {
-        reservationSearchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#reservationsTable tbody tr');
-            
-            rows.forEach(row => {
-                const id = row.cells[0].textContent.toLowerCase();
-                const client = row.cells[1].textContent.toLowerCase();
-                const invoice = row.cells[5].textContent.toLowerCase();
-                
-                if (id.includes(searchTerm) || client.includes(searchTerm) || invoice.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-    }
-    
-    // البحث في جدول الفواتير
-    const invoiceSearchInput = document.getElementById('invoiceSearchInput');
-    if (invoiceSearchInput) {
-        invoiceSearchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#invoicesTable tbody tr');
-            
-            rows.forEach(row => {
-                const id = row.cells[0].textContent.toLowerCase();
-                const client = row.cells[2].textContent.toLowerCase();
-                
-                if (id.includes(searchTerm) || client.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-    }
-}
-
-// إعداد تبويبات التقارير
-function setupReportTabs() {
-    const reportTabs = document.querySelectorAll('.report-tab');
-    const reportCards = document.querySelectorAll('#reports .card');
-    
-    reportTabs.forEach(tab => {
-        tab.addEventListener('click', function() {
-            const reportType = this.getAttribute('data-report');
-            
-            // تحديث التبويبات النشطة
-            reportTabs.forEach(t => t.classList.remove('active'));
-            this.classList.add('active');
-            
-            // عرض التقرير المناسب
-            reportCards.forEach(card => {
-                card.classList.add('hidden');
-            });
-            
-            document.getElementById(`${reportType}Report`).classList.remove('hidden');
-        });
-    });
-}
-
-// إعداد زر عرض الميزات
-function setupFeatureShowcase() {
-    const heroBtn = document.querySelector('.hero-btn');
-    const showcase = document.getElementById('featuresShowcase');
-    const closeBtn = document.getElementById('closeShowcaseBtn');
-    
-    if (heroBtn && showcase && closeBtn) {
-        heroBtn.addEventListener('click', function() {
-            showcase.style.display = 'block';
-            showcase.scrollIntoView({ behavior: 'smooth' });
-        });
-        
-        closeBtn.addEventListener('click', function() {
-            showcase.style.display = 'none';
-        });
-    }
-}
-
-// عرض بيانات التقارير
-function renderReports() {
-    // تقرير ملخص
-    updateReportSummary();
-    
-    // تقرير مستحقات المعلقين
-    renderActorsReport();
-    
-    // تقرير أرصدة العملاء
-    renderClientsReport();
-}
-
-// تحديث ملخص التقرير
-function updateReportSummary() {
-    const totalRevenue = reservations.reduce((sum, res) => sum + res.workPrice, 0);
-    const totalExpense = monthlyExpense;
-    const totalActorFees = reservations.reduce((sum, res) => {
-        const actorFees = res.voiceActors.reduce((sum, actor) => sum + actor.fee, 0);
-        return sum + actorFees;
-    }, 0);
-    const netRevenue = totalRevenue - totalActorFees - totalExpense;
-    
-    document.getElementById('reportTotalRevenue').textContent = totalRevenue.toLocaleString();
-    document.getElementById('reportTotalExpense').textContent = totalExpense.toLocaleString();
-    document.getElementById('reportTotalActorFees').textContent = totalActorFees.toLocaleString();
-    document.getElementById('reportNetRevenue').textContent = netRevenue.toLocaleString();
-    
-    // إنشاء رسم بياني للملخص المالي
-    const summaryChartCanvas = document.getElementById('summaryChartCanvas');
-    if (summaryChartCanvas) {
-        if (window.summaryChart) {
-            window.summaryChart.destroy();
-        }
-        
-        window.summaryChart = new Chart(summaryChartCanvas, {
-            type: 'bar',
-            data: {
-                labels: ['الإيرادات', 'المصروفات', 'مستحقات المعلقين', 'الصافي'],
-                datasets: [{
-                    label: 'القيمة (ريال)',
-                    data: [totalRevenue, totalExpense, totalActorFees, netRevenue],
-                    backgroundColor: [
-                        'rgba(46, 204, 113, 0.6)',
-                        'rgba(231, 76, 60, 0.6)',
-                        'rgba(241, 196, 15, 0.6)',
-                        'rgba(52, 152, 219, 0.6)'
-                    ],
-                    borderColor: [
-                        'rgba(46, 204, 113, 1)',
-                        'rgba(231, 76, 60, 1)',
-                        'rgba(241, 196, 15, 1)',
-                        'rgba(52, 152, 219, 1)'
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
-    }
-}
-
-// عرض تقرير المعلقين
-function renderActorsReport() {
-    const table = document.getElementById('actorsReportTable');
-    if (!table) return;
-    
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    // تجميع البيانات لكل معلق
-    const actorStats = {};
-    
-    voices.forEach(voice => {
-        actorStats[voice.name] = {
-            name: voice.name,
-            reservationCount: 0,
-            totalFees: 0,
-            paidAmount: 0,
-            remainingAmount: 0
-        };
-    });
-    
-    reservations.forEach(reservation => {
-        reservation.voiceActors.forEach(actor => {
-            if (actorStats[actor.name]) {
-                actorStats[actor.name].reservationCount++;
-                actorStats[actor.name].totalFees += actor.fee;
-                
-                if (reservation.actorPaid) {
-                    actorStats[actor.name].paidAmount += actor.fee;
-                } else {
-                    actorStats[actor.name].remainingAmount += actor.fee;
-                }
-            }
-        });
-    });
-    
-    // تحويل إلى مصفوفة وترتيب حسب المستحقات المتبقية
-    const actorsData = Object.values(actorStats).sort((a, b) => b.remainingAmount - a.remainingAmount);
-    
-    if (actorsData.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="6" class="text-center">لا توجد بيانات متاحة</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    actorsData.forEach(actor => {
-        const row = document.createElement('tr');
-        
-        // حالة الدفع
-        let paymentStatus;
-        if (actor.remainingAmount === 0) {
-            paymentStatus = '<span class="status-badge success">مدفوع بالكامل</span>';
-        } else if (actor.paidAmount > 0) {
-            paymentStatus = '<span class="status-badge warning">مدفوع جزئياً</span>';
-        } else {
-            paymentStatus = '<span class="status-badge danger">غير مدفوع</span>';
-        }
-        
-        row.innerHTML = `
-            <td>${actor.name}</td>
-            <td>${actor.reservationCount}</td>
-            <td>${actor.totalFees} ريال</td>
-            <td>${actor.paidAmount} ريال</td>
-            <td>${actor.remainingAmount} ريال</td>
-            <td>${paymentStatus}</td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// عرض تقرير العملاء
-function renderClientsReport() {
-    const table = document.getElementById('clientsReportTable');
-    if (!table) return;
-    
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    // تجميع البيانات لكل عميل
-    const clientStats = {};
-    
-    clients.forEach(client => {
-        clientStats[client.name] = {
-            name: client.name,
-            reservationCount: 0,
-            totalInvoiced: 0,
-            paidAmount: 0,
-            remainingAmount: 0
-        };
-    });
-    
-    reservations.forEach(reservation => {
-        if (clientStats[reservation.client]) {
-            clientStats[reservation.client].reservationCount++;
-            clientStats[reservation.client].totalInvoiced += reservation.workPrice;
-            
-            if (reservation.invoicePaid) {
-                clientStats[reservation.client].paidAmount += reservation.workPrice;
-            } else {
-                clientStats[reservation.client].remainingAmount += reservation.workPrice;
-            }
-        }
-    });
-    
-    // تحويل إلى مصفوفة وترتيب حسب المبالغ المتبقية
-    const clientsData = Object.values(clientStats).sort((a, b) => b.remainingAmount - a.remainingAmount);
-    
-    if (clientsData.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="6" class="text-center">لا توجد بيانات متاحة</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    clientsData.forEach(client => {
-        const row = document.createElement('tr');
-        
-        // حالة الدفع
-        let paymentStatus;
-        if (client.remainingAmount === 0) {
-            paymentStatus = '<span class="status-badge success">مدفوع بالكامل</span>';
-        } else if (client.paidAmount > 0) {
-            paymentStatus = '<span class="status-badge warning">مدفوع جزئياً</span>';
-        } else {
-            paymentStatus = '<span class="status-badge danger">غير مدفوع</span>';
-        }
-        
-        row.innerHTML = `
-            <td>${client.name}</td>
-            <td>${client.reservationCount}</td>
-            <td>${client.totalInvoiced} ريال</td>
-            <td>${client.paidAmount} ريال</td>
-            <td>${client.remainingAmount} ريال</td>
-            <td>${paymentStatus}</td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// طباعة التقرير
-function printReport(reportType) {
-    let title, content;
-    
-    switch (reportType) {
-        case 'summary':
-            title = 'الملخص المالي';
-            content = document.getElementById('summaryReport').innerHTML;
-            break;
-        case 'actors':
-            title = 'مستحقات المعلقين';
-            content = document.getElementById('actorsReport').innerHTML;
-            break;
-        case 'clients':
-            title = 'أرصدة العملاء';
-            content = document.getElementById('clientsReport').innerHTML;
-            break;
-    }
-    
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html lang="ar" dir="rtl">
-        <head>
-            <meta charset="UTF-8">
-            <title>تقرير ${title}</title>
-            <style>
-                body {
-                    font-family: 'Tajawal', sans-serif;
-                    padding: 20px;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 20px;
-                }
-                th, td {
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: right;
-                }
-                th {
-                    background-color: #f2f2f2;
-                }
-                h2 {
-                    text-align: center;
-                    margin-bottom: 20px;
-                }
-                .print-header {
-                    text-align: center;
-                    margin-bottom: 30px;
-                }
-                .print-date {
-                    text-align: left;
-                    margin-bottom: 20px;
-                }
-                .card-actions, .btn, .btn-icon {
-                    display: none;
-                }
-                .table-container {
-                    overflow: visible;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="print-header">
-                <h1>تقرير ${title}</h1>
-            </div>
-            <div class="print-date">
-                تاريخ الطباعة: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
-            </div>
-            ${content}
-            <script>
-                window.onload = function() {
-                    window.print();
-                }
-            </script>
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
-}
-
-// تصدير إلى Excel
-function exportToExcel(type) {
-    let data, filename;
-    
-    switch (type) {
-        case 'reservations':
-            data = reservations.map(res => ({
-                'رقم الحجز': res.id,
-                'العميل': res.client,
-                'موعد التسجيل': res.recordTime,
-                'سعر العمل': res.workPrice,
-                'المعلقون': res.voiceActors.map(va => `${va.name} (${va.fee})`).join(', '),
-                'رقم الفاتورة': res.invoiceNumber || '-',
-                'حالة الدفع': res.invoicePaid ? 'مدفوعة' : 'معلقة'
-            }));
-            filename = 'الحجوزات.xlsx';
-            break;
-    }
-    
-    if (!data) return;
-    
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-    XLSX.writeFile(workbook, filename);
-}
-
-// استيراد من CSV
-function importCSVModal(type) {
-    alert('ميزة استيراد ملفات CSV قيد التطوير');
-}
-
-// استيراد الفواتير من Excel
-function importInvoicesFromExcel() {
-    alert('ميزة استيراد الفواتير من Excel قيد التطوير');
-}
-
-// فتح إعدادات السحابة
-function openCloudSettings() {
-    // إعداد نصوص واجهة المستخدم
-    const driveAuthMessage = document.getElementById('driveAuthMessage');
-    const settingsSection = document.getElementById('driveBackupSettings');
-    const restoreOptions = document.getElementById('driveRestoreOptions');
-    const restoreMessage = document.getElementById('driveRestoreMessage');
-    
-    // التحقق من حالة المصادقة
-    const savedToken = localStorage.getItem('gDriveToken');
-    const tokenExpiry = localStorage.getItem('gDriveTokenExpiry');
-    
-    if (savedToken && tokenExpiry && parseInt(tokenExpiry) > Date.now()) {
-        if (driveAuthMessage) driveAuthMessage.textContent = 'تم تسجيل الدخول بنجاح';
-        if (settingsSection) settingsSection.style.display = 'block';
-        if (restoreOptions) restoreOptions.style.display = 'block';
-        if (restoreMessage) restoreMessage.style.display = 'none';
-    } else {
-        if (driveAuthMessage) driveAuthMessage.textContent = 'لم يتم تسجيل الدخول بعد.';
-        if (settingsSection) settingsSection.style.display = 'none';
-        if (restoreOptions) restoreOptions.style.display = 'none';
-        if (restoreMessage) restoreMessage.style.display = 'block';
-    }
-    
-    // إعداد الخيارات الأخرى
-    const autoBackupCheckbox = document.getElementById('enableAutoBackup');
-    const autoBackupOptions = document.getElementById('autoBackupOptions');
-    const autoSyncCheckbox = document.getElementById('enableAutoSync');
-    
-    if (autoBackupCheckbox && autoBackupOptions) {
-        autoBackupCheckbox.checked = localStorage.getItem('autoBackupEnabled') === 'true';
-        autoBackupOptions.style.display = autoBackupCheckbox.checked ? 'block' : 'none';
-    }
-    
-    if (autoSyncCheckbox) {
-        autoSyncCheckbox.checked = localStorage.getItem('autoSyncEnabled') !== 'false';
-    }
-    
-    // عرض المودال
-    document.getElementById('cloudSettingsModal').classList.add('active');
-}
-
-// حفظ إعدادات السحابة
-function saveCloudSettings() {
-    // حفظ اسم مجلد النسخ الاحتياطي
-    const folderName = document.getElementById('backupFolderName').value.trim();
-    localStorage.setItem('backupFolderName', folderName);
-    
-    // حفظ إعدادات النسخ الاحتياطي التلقائي
-    const autoBackupEnabled = document.getElementById('enableAutoBackup').checked;
-    localStorage.setItem('autoBackupEnabled', autoBackupEnabled);
-    
-    // حفظ تكرار النسخ الاحتياطي
-    const backupFrequency = document.getElementById('backupFrequency').value;
-    localStorage.setItem('backupFrequency', backupFrequency);
-    
-    // حفظ إعدادات المزامنة التلقائية
-    const autoSyncEnabled = document.getElementById('enableAutoSync').checked;
-    localStorage.setItem('autoSyncEnabled', autoSyncEnabled);
-    
-    // تحديث الجدولة
-    if (autoBackupEnabled) {
-        setupAutoBackup();
-    } else {
-        clearAutoBackup();
-    }
-    
-    showNotification("تم الحفظ", "تم حفظ الإعدادات بنجاح", "success");
-    closeModal('cloudSettingsModal');
-}
-
-// إعداد النسخ الاحتياطي التلقائي
-function setupAutoBackup() {
-    // إلغاء أي جدولة سابقة
-    clearAutoBackup();
-    
-    const isEnabled = localStorage.getItem('autoBackupEnabled') === 'true';
-    if (!isEnabled) return;
-    
-    const frequency = localStorage.getItem('backupFrequency') || 'weekly';
-    let intervalMs;
-    
-    switch (frequency) {
-        case 'daily':
-            intervalMs = 24 * 60 * 60 * 1000; // يوم واحد
-            break;
-        case 'weekly':
-            intervalMs = 7 * 24 * 60 * 60 * 1000; // أسبوع
-            break;
-        case 'monthly':
-            intervalMs = 30 * 24 * 60 * 60 * 1000; // شهر تقريبي
-            break;
-        default:
-            intervalMs = 7 * 24 * 60 * 60 * 1000; // أسبوع افتراضي
-    }
-    
-    // حفظ معرف المؤقت لإمكانية إلغائه لاحقاً
-    const timerId = setInterval(() => {
-        if (typeof window.backupToDrive === 'function') {
-            window.backupToDrive(false);
-        }
-    }, intervalMs);
-    
-    localStorage.setItem('autoBackupTimerId', timerId);
-    
-    // عمل نسخة احتياطية عند بدء التشغيل (بعد دقيقة واحدة)
+    // إزالة الإشعار بعد 4 ثوانِ
     setTimeout(() => {
-        if (typeof window.backupToDrive === 'function') {
-            window.backupToDrive(false);
-        }
-    }, 60000);
-}
-
-// إلغاء النسخ الاحتياطي التلقائي
-function clearAutoBackup() {
-    const timerId = localStorage.getItem('autoBackupTimerId');
-    if (timerId) {
-        clearInterval(parseInt(timerId));
-        localStorage.removeItem('autoBackupTimerId');
-    }
-}
-
-// حفظ حالة التطبيق للتراجع
-function saveState() {
-    const state = {
-        balance,
-        voices: JSON.parse(JSON.stringify(voices)),
-        clients: JSON.parse(JSON.stringify(clients)),
-        reservations: JSON.parse(JSON.stringify(reservations)),
-        invoices: JSON.parse(JSON.stringify(invoices)),
-        invoiceAuditLog: JSON.parse(JSON.stringify(invoiceAuditLog))
-    };
-    
-    stateHistory.push(state);
-    
-    // الاحتفاظ بآخر 10 حالات فقط
-    if (stateHistory.length > 10) {
-        stateHistory.shift();
-    }
-}
-
-// التراجع عن آخر تغيير
-function undoChange() {
-    if (stateHistory.length === 0) {
-        alert("لا يوجد تغييرات يمكن التراجع عنها");
-        return;
-    }
-    
-    const lastState = stateHistory.pop();
-    
-    balance = lastState.balance;
-    voices = lastState.voices;
-    clients = lastState.clients;
-    reservations = lastState.reservations;
-    invoices = lastState.invoices;
-    invoiceAuditLog = lastState.invoiceAuditLog;
-    
-    // تحديث واجهة المستخدم
-    updateAllStatistics();
-    renderVoicesTable();
-    renderClientsTable();
-    renderReservationsTable();
-    renderInvoicesTable();
-    renderInvoiceAuditLogTable();
-    renderReports();
-    updateCharts(document.querySelector('input[name="chartGrouping"]:checked').value);
-    
-    showNotification("تم التراجع", "تم التراجع عن آخر تغيير بنجاح", "success");
-}
-
-// التصدير التلقائي
-window.backupToDrive = function(isManualSave = false) {
-    const data = {
-        balance,
-        voices,
-        clients,
-        reservations,
-        invoices,
-        invoiceAuditLog
-    };
-    
-    if (isManualSave) {
-        showSyncIndicator("جاري حفظ البيانات...");
-    }
-    
-    if (typeof authenticateWithGoogleDrive === 'function') {
-        // الحفظ باستخدام وظيفة cloud-backup.js
-        const savedToken = localStorage.getItem('gDriveToken');
-        const tokenExpiry = localStorage.getItem('gDriveTokenExpiry');
-        
-        if (savedToken && tokenExpiry && parseInt(tokenExpiry) > Date.now()) {
-            // التوكن صالح، يمكن المتابعة مع الحفظ
-            const folderName = localStorage.getItem('backupFolderName') || 'Dashboard_Backups';
-            
-            // إرسال البيانات إلى Google Drive
-            // (هذه الوظيفة ستكون في ملف cloud-backup.js)
-            if (typeof saveDataToDrive === 'function') {
-                saveDataToDrive(JSON.stringify(data), folderName)
-                    .then(result => {
-                        if (isManualSave) {
-                            hideSyncIndicator();
-                            showSyncSuccess("تم الحفظ", "تم حفظ البيانات بنجاح على Google Drive");
-                        }
-                    })
-                    .catch(error => {
-                        if (isManualSave) {
-                            hideSyncIndicator();
-                            showSyncError("خطأ في الحفظ", "تعذر حفظ البيانات: " + error.message);
-                        }
-                    });
-            } else {
-                if (isManualSave) {
-                    hideSyncIndicator();
-                    showSyncError("خطأ في الحفظ", "وظيفة الحفظ غير متاحة");
+        if (notification.parentNode) {
+            notification.style.animation = 'fadeOut 0.3s ease forwards';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
                 }
-            }
-        } else {
-            // التوكن غير صالح، يجب إعادة المصادقة
-            if (isManualSave) {
-                hideSyncIndicator();
-                openCloudSettings();
-            }
+            }, 300);
         }
-    } else {
-        // محاولة تحميل ملف cloud-backup.js
-        if (isManualSave) {
-            const script = document.createElement('script');
-            script.src = 'js/cloud-backup.js';
-            script.onload = function() {
-                backupToDrive(isManualSave);
-            };
-            document.head.appendChild(script);
-        }
-    }
-};
+    }, 4000);
+}
 
-// استعادة من Google Drive
-function restoreFromDrive() {
-    showSyncIndicator("جاري استعادة البيانات...");
-    
-    if (typeof autoRestoreLatestBackup === 'function') {
-        autoRestoreLatestBackup(true)
-            .then(result => {
-                if (result.success) {
-                    try {
-                        // محاولة تحليل البيانات المستردة
-                        const data = JSON.parse(result.data);
-                        
-                        // حفظ الحالة الحالية قبل الاستعادة
-                        saveState();
-                        
-                        // استعادة البيانات
-                        balance = data.balance;
-                        voices = data.voices;
-                        clients = data.clients;
-                        reservations = data.reservations;
-                        invoices = data.invoices;
-                        invoiceAuditLog = data.invoiceAuditLog;
-                        
-                        // تحديث واجهة المستخدم
-                        updateAllStatistics();
-                        renderVoicesTable();
-                        renderClientsTable();
-                        renderReservationsTable();
-                        renderInvoicesTable();
-                        renderInvoiceAuditLogTable();
-                        renderReports();
-                        updateCharts(document.querySelector('input[name="chartGrouping"]:checked').value);
-                        
-                        hideSyncIndicator();
-                        showSyncSuccess("تمت الاستعادة", `تم استعادة البيانات بنجاح (${new Date(result.creationTime).toLocaleString()})`);
-                    } catch (error) {
-                        hideSyncIndicator();
-                        showSyncError("خطأ في الاستعادة", "تعذر تحليل البيانات المستردة");
-                    }
-                } else {
-                    hideSyncIndicator();
-                    showSyncError("خطأ في الاستعادة", result.message || "تعذر استعادة البيانات");
-                }
-            })
-            .catch(error => {
-                hideSyncIndicator();
-                showSyncError("خطأ في الاستعادة", "تعذر الاتصال بخدمة Google Drive");
-            });
-    } else {
-        // محاولة تحميل ملف cloud-backup.js
-        const script = document.createElement('script');
-        script.src = 'js/cloud-backup.js';
-        script.onload = function() {
-            restoreFromDrive();
-        };
-        document.head.appendChild(script);
-    }
+// محاولة استرجاع البيانات من التخزين المحلي - إلغاء لتفادي التعارض مع المزامنة السحابية
+function tryRestoreFromLocalStorage() {
+    // تم إلغاء هذه الوظيفة لتفادي التعارض مع المزامنة السحابية التلقائية
+    console.log("تم تعطيل الاسترجاع من التخزين المحلي لصالح المزامنة السحابية");
+    return false;
 }

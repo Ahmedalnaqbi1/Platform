@@ -1,0 +1,910 @@
+/* تصميم التقارير المالية - مطور */
+.report-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 30px;
+    background: var(--card-bg);
+    padding: 15px;
+    border-radius: var(--border-radius);
+    overflow-x: auto;
+    box-shadow: var(--shadow);
+}
+
+.report-tab {
+    background: none;
+    border: none;
+    padding: 12px 22px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: var(--button-radius);
+    transition: var(--transition);
+    color: var(--text-color);
+    font-family: 'Tajawal', sans-serif;
+    font-weight: 500;
+    position: relative;
+}
+
+.report-tab:hover {
+    background: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.report-tab.active {
+    background: var(--primary-color);
+    color: white;
+    box-shadow: var(--shadow);
+}
+
+.report-content {
+    padding: 25px;
+}
+
+/* تحسين الملخص المالي */
+.report-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.summary-item {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.summary-item:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--hover-shadow);
+}
+
+.summary-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 5px;
+    height: 100%;
+}
+
+.summary-item.success::before {
+    background-color: var(--success-color);
+}
+
+.summary-item.danger::before {
+    background-color: var(--danger-color);
+}
+
+.summary-item.warning::before {
+    background-color: var(--warning-color);
+}
+
+.summary-item h4 {
+    font-size: 15px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+.summary-value {
+    font-size: 26px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    transition: transform 0.3s ease;
+}
+
+.summary-item:hover .summary-value {
+    transform: scale(1.05);
+}
+
+.summary-value.success {
+    color: var(--success-color);
+    text-shadow: 0 0 1px rgba(46, 204, 113, 0.3);
+}
+
+.summary-value.danger {
+    color: var(--danger-color);
+    text-shadow: 0 0 1px rgba(231, 76, 60, 0.3);
+}
+
+.summary-value.warning {
+    color: var(--warning-color);
+    text-shadow: 0 0 1px rgba(241, 196, 15, 0.3);
+}
+
+.summary-value i {
+    margin-left: 8px;
+    font-size: 22px;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.summary-item:hover .summary-value i {
+    opacity: 1;
+}
+
+.report-chart {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    height: 350px;
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* عداد المستحقات المالية */
+.due-counters-container {
+    display: flex;
+    gap: 20px;
+    margin: 30px 0;
+}
+
+.due-payments-counter {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 25px;
+    box-shadow: var(--shadow);
+    text-align: center;
+    border: 1px solid var(--border-color);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    flex: 1;
+}
+
+.due-payments-counter:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--hover-shadow);
+}
+
+.due-payments-title {
+    font-size: 20px;
+    margin-bottom: 20px;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+.due-payments-title i {
+    margin-left: 12px;
+    font-size: 24px;
+    color: var(--primary-color);
+}
+
+.due-amount {
+    font-size: 36px;
+    font-weight: bold;
+    margin: 15px 0;
+    padding: 20px;
+    border-radius: var(--border-radius);
+    display: inline-block;
+    transition: var(--transition);
+    min-width: 250px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    border: 2px solid transparent;
+}
+
+.due-amount.normal {
+    color: var(--text-color);
+    background-color: var(--primary-light);
+    border-color: var(--primary-color);
+}
+
+.due-amount.warning {
+    color: #7d6608;
+    background-color: #fff8e1;
+    border-color: #f1c40f;
+}
+
+.due-amount.danger {
+    color: #921a0c;
+    background-color: #ffeded;
+    border-color: var(--danger-color);
+}
+
+.due-amount.overdue {
+    color: white;
+    background-color: var(--danger-color);
+    animation: pulse 1.5s infinite;
+}
+
+.due-date-info {
+    font-size: 16px;
+    color: var(--text-color);
+    margin-top: 15px;
+    line-height: 1.5;
+    max-width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* أرصدة العملاء */
+.client-balance-card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 15px;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.client-balance-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 5px;
+    height: 100%;
+    background-color: var(--primary-color);
+    transition: width 0.3s ease;
+}
+
+.client-balance-card:hover {
+    transform: translateX(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.client-balance-card:hover::before {
+    width: 7px;
+}
+
+.client-balance-card.paid::before {
+    background-color: var(--success-color);
+}
+
+.client-balance-card.partial::before {
+    background-color: var(--warning-color);
+}
+
+.client-balance-card.unpaid::before {
+    background-color: var(--danger-color);
+}
+
+.client-balance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.client-name {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.client-status {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.client-status.paid {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: var(--success-color);
+}
+
+.client-status.partial {
+    background-color: rgba(241, 196, 15, 0.15);
+    color: #7d6608;
+}
+
+.client-status.unpaid {
+    background-color: rgba(231, 76, 60, 0.15);
+    color: var(--danger-color);
+}
+
+.client-balance-details {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.client-due-counter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 10px 0;
+    padding: 5px 0;
+    border-top: 1px dashed rgba(0, 0, 0, 0.1);
+    padding-top: 10px;
+}
+
+.client-last-payment {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--success-color);
+    padding-top: 5px;
+}
+
+.client-last-payment i {
+    margin-left: 5px;
+    font-size: 16px;
+}
+
+.due-date-small {
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.due-date-small i {
+    font-size: 16px;
+}
+
+.balance-detail-item {
+    text-align: center;
+}
+
+.balance-detail-label {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 5px;
+}
+
+.balance-detail-value {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.balance-detail-value.success {
+    color: var(--success-color);
+}
+
+.balance-detail-value.danger {
+    color: var(--danger-color);
+}
+
+/* عداد مستحقات المعلقين */
+.due-counter {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    white-space: nowrap;
+    transition: var(--transition);
+}
+
+.due-counter.normal {
+    background-color: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.due-counter.warning {
+    background-color: rgba(241, 196, 15, 0.25);
+    color: #7d6608;
+    font-weight: bold;
+}
+
+.due-counter.danger {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: var(--danger-color);
+}
+
+.due-counter.overdue {
+    background-color: var(--danger-color);
+    color: white;
+    animation: pulse 1.5s infinite;
+}
+
+.due-counter.paid {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: var(--success-color);
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* تنسيق تاريخ استحقاق الدفع */
+.due-date {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: bold;
+    text-align: center;
+    direction: ltr;
+}
+
+.due-date.normal {
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+}
+
+.due-date.warning {
+    border: 1px solid #f1c40f;
+    color: #7d6608;
+    background-color: rgba(241, 196, 15, 0.1);
+}
+
+.due-date.danger {
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+}
+
+.due-date.overdue {
+    border: 1px solid var(--danger-color);
+    background-color: rgba(231, 76, 60, 0.1);
+    color: var(--danger-color);
+}
+
+.due-date.paid {
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
+}
+
+/* تنسيق تفاصيل المستحقات المالية */
+.due-payments-details {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.due-payment-detail {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    padding: 5px 0;
+    border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+.due-payment-detail i {
+    margin-left: 8px;
+    font-size: 16px;
+}
+
+.due-payment-detail.overdue {
+    color: var(--danger-color);
+}
+
+.due-payment-detail.overdue i {
+    color: var(--danger-color);
+}
+
+.due-payment-detail.upcoming {
+    color: var(--primary-color);
+}
+
+.due-payment-detail.upcoming i {
+    color: var(--primary-color);
+}
+
+.due-payment-detail.closest {
+    font-weight: bold;
+}
+
+.overdue-info {
+    color: var(--danger-color);
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+.upcoming-info {
+    color: var(--primary-color);
+    margin-top: 5px;
+}
+
+/* تنسيق تفاصيل عداد المستحقات في قسم التقرير */
+#dueDateInfo {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+#dueDateInfo span.overdue {
+    color: var(--danger-color);
+    font-weight: bold;
+}
+
+#dueDateInfo span.danger {
+    color: var(--danger-color);
+}
+
+#dueDateInfo span.warning {
+    color: #f1c40f;
+}
+
+#dueDateInfo span.normal {
+    color: var(--primary-color);
+}
+
+/* تنسيقات خاصة بملخص المستحقات والمدفوعات */
+.report-summary-card {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    background-color: var(--card-bg);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-color);
+}
+
+.summary-header {
+    grid-column: 1 / -1;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.summary-header h4 {
+    font-size: 18px;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.actors-summary {
+    border-right: 4px solid var(--success-color);
+}
+
+.report-summary-card .summary-item {
+    text-align: center;
+}
+
+.report-summary-card .summary-label {
+    color: var(--text-light);
+    font-size: 14px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.report-summary-card .summary-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+/* تنسيقات خاصة بالأعمال المدفوعة */
+.section-title {
+    margin: 30px 0 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+}
+
+.section-title small {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin-right: 10px;
+    font-weight: 400;
+}
+
+/* تنسيقات خاصة بأزرار الدفع */
+.btn-success {
+    background-color: var(--success-color);
+    color: white;
+    border: none;
+    transition: var(--transition);
+    padding: 8px 15px;
+    border-radius: var(--button-radius);
+    cursor: pointer;
+    font-family: 'Tajawal', sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+    transform: translateY(-2px);
+    box-shadow: var(--hover-shadow);
+}
+
+.btn-sm {
+    padding: 5px 10px;
+    font-size: 0.875rem;
+    border-radius: var(--button-radius);
+}
+
+/* تنسيقات خاصة بحالة الدفع */
+.status {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-block;
+    text-align: center;
+}
+
+.status.success {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: var(--success-color);
+}
+
+.status.warning {
+    background-color: rgba(241, 196, 15, 0.15);
+    color: #7d6608;
+}
+
+/* تنسيقات خاصة بتاريخ الدفع للأعمال المدفوعة */
+.due-date.paid {
+    background-color: rgba(46, 204, 113, 0.1);
+    color: var(--success-color);
+    border-color: var(--success-color);
+}
+
+/* تنسيقات خاصة لجدول مستحقات المعلقين */
+.payment-btn {
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.payment-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+.payment-btn i {
+    margin-left: 5px;
+    font-size: 16px;
+}
+
+/* تنسيقات للهيكل الجديد للتقارير بدون بطاقات */
+.report-section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 60px 0 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+    font-size: 1.5rem;
+    position: relative;
+}
+
+/* إضافة خط تحت العنوان */
+.report-section-title::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    right: 0;
+    width: 80px;
+    height: 3px;
+    background-color: var(--primary-color);
+    border-radius: 2px;
+}
+
+/* إضافة مساحة خاصة للقسم الأول */
+.report-section-title:first-of-type {
+    margin-top: 25px;
+}
+
+/* تنسيق أيقونة الطباعة في عناوين الأقسام */
+.report-section-title .btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 15px;
+    transition: all 0.3s ease;
+    border-radius: var(--border-radius);
+}
+
+.report-section-title .btn:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--hover-shadow);
+}
+
+/* إضافة مساحة بين الأقسام */
+#actorsReportSection, 
+#clientsReportTable {
+    margin-bottom: 50px;
+}
+
+/* تحسين عرض الجداول القابلة للاختيار والنسخ */
+.selectable-table {
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+}
+
+.selectable-table td, 
+.selectable-table th {
+    cursor: text;
+}
+
+/* تحسين ظهور الأزرار في الجداول */
+.selectable-table button {
+    cursor: pointer;
+}
+
+/* تنسيقات تلوين صفوف الجدول حسب حالة المستحقات */
+.overdue-row {
+    background-color: rgba(231, 76, 60, 0.05);
+    border-right: 3px solid var(--danger-color);
+}
+
+.warning-row {
+    background-color: rgba(241, 196, 15, 0.05);
+    border-right: 3px solid var(--warning-color);
+}
+
+/* إضافة فئة جديدة للعداد */
+.due-counter.medium {
+    background-color: rgba(243, 156, 18, 0.15);
+    color: #945904;
+}
+
+/* تحسين مظهر صف الجدول عند تحويم الماوس */
+#actorsReportTable tbody tr,
+#paidActorsTable tbody tr {
+    transition: all 0.2s ease;
+}
+
+#actorsReportTable tbody tr:hover,
+#paidActorsTable tbody tr:hover {
+    background-color: rgba(52, 152, 219, 0.05);
+    transform: translateX(-2px);
+}
+
+/* تنسيقات جدول المدفوعات */
+.paid-row {
+    background-color: rgba(46, 204, 113, 0.05);
+    border-right: 3px solid var(--success-color);
+}
+
+.payment-early,
+.payment-ontime,
+.payment-late {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-right: 5px;
+}
+
+.payment-early {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: var(--success-color);
+}
+
+.payment-ontime {
+    background-color: rgba(52, 152, 219, 0.15);
+    color: #186a9a;
+}
+
+.payment-late {
+    background-color: rgba(231, 76, 60, 0.15);
+    color: var(--danger-color);
+}
+
+/* تنسيقات ملخص مستحقات المعلقين */
+.due-status-message {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    margin: 15px 0;
+    border-radius: var(--border-radius);
+    font-weight: bold;
+}
+
+.due-status-message i {
+    margin-left: 8px;
+    font-size: 18px;
+}
+
+.due-status-message.overdue {
+    background-color: rgba(231, 76, 60, 0.1);
+    color: var(--danger-color);
+}
+
+.due-status-message.warning {
+    background-color: rgba(241, 196, 15, 0.1);
+    color: #7d6608;
+}
+
+.due-status-message.normal {
+    background-color: rgba(46, 204, 113, 0.1);
+    color: var(--success-color);
+}
+
+.due-payments-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.payment-stat {
+    display: flex;
+    align-items: center;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+}
+
+.payment-stat i {
+    margin-left: 6px;
+    font-size: 16px;
+}
+
+.payment-stat.overdue {
+    background-color: rgba(231, 76, 60, 0.1);
+    color: var(--danger-color);
+}
+
+.payment-stat.warning {
+    background-color: rgba(241, 196, 15, 0.1);
+    color: #7d6608;
+}
+
+.payment-stat.success {
+    background-color: rgba(46, 204, 113, 0.1);
+    color: var(--success-color);
+}
+
+.summary-footer {
+    padding-top: 15px;
+    margin-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.error-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+    margin: 10px 0;
+    background-color: rgba(231, 76, 60, 0.1);
+    color: var(--danger-color);
+    border-radius: var(--border-radius);
+    font-weight: bold;
+}
+
+.error-message i {
+    margin-left: 8px;
+    font-size: 20px;
+}
+
+/* الاستجابة لأحجام الشاشات المختلفة */
+@media (max-width: 768px) {
+    .report-summary {
+        grid-template-columns: 1fr;
+    }
+    
+    .client-balance-details {
+        grid-template-columns: 1fr;
+        text-align: right;
+    }
+    
+    .balance-detail-item {
+        text-align: right;
+    }
+    
+    .report-summary-card {
+        grid-template-columns: 1fr;
+    }
+}
